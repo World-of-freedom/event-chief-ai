@@ -14,3 +14,16 @@ export const comingSoonRoutes: FeatureRoute[] = [
   { label: "Vendors & volunteers", to: "/coming-soon/vendors", isComingSoon: true },
   { label: "Ticketing & check-in", to: "/coming-soon/ticketing", isComingSoon: true },
 ];
+
+const extraLabels: Record<string, string> = {
+  "/auth": "Sign in",
+};
+
+export function routeLabelForPath(pathname: string) {
+  const exact = [...appRoutes, ...comingSoonRoutes].find((route) => route.to === pathname);
+  if (exact) return exact.label;
+  if (pathname.startsWith("/discovery/")) return "Prospect";
+  if (pathname.startsWith("/outreach/")) return "Outreach";
+  if (pathname.startsWith("/calls/")) return "Call review";
+  return extraLabels[pathname] ?? "Workspace";
+}

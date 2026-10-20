@@ -2,6 +2,13 @@ import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import { TemplateNotice } from "@/components/TemplateNotice";
 
+const metrics = [
+  ["Cash gap", "—", "Confirmed cash versus stated need"],
+  ["Reviewed support", "—", "Offers cleared for reporting"],
+  ["Open follow-ups", "—", "Owned tasks still due"],
+  ["Recent calls", "—", "Reviewed voice activity"],
+] as const;
+
 export function DashboardPage() {
   return (
     <>
@@ -10,14 +17,11 @@ export function DashboardPage() {
         Dashboard aggregates are intentionally not connected. Add a dashboard query after the event, offer, and task repositories are implemented.
       </TemplateNotice>
       <div className="metric-grid" aria-label="Dashboard placeholders">
-        {[
-          ["Cash gap", "—"],
-          ["Reviewed support", "—"],
-          ["Open follow-ups", "—"],
-          ["Recent calls", "—"],
-        ].map(([label, value]) => (
+        {metrics.map(([label, value, hint]) => (
           <section className="metric-card" key={label}>
-            <span>{label}</span><strong>{value}</strong>
+            <span>{label}</span>
+            <strong>{value}</strong>
+            <small>{hint}</small>
           </section>
         ))}
       </div>

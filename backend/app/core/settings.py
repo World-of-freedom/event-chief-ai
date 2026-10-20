@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import AliasChoices, AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -53,6 +54,38 @@ class Settings(DatabaseSettings):
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
     app_env: str = Field(default="development", alias="APP_ENV")
 
+    # ── Sponsor Discovery ────────────────────────────────────────────────────
+    # LLM provider — set LLM_PROVIDER to switch between gemini / openai / anthropic
+    llm_provider: Literal["gemini", "openai", "anthropic"] = Field(
+        default="gemini", alias="LLM_PROVIDER"
+    )
+    llm_model: str | None = Field(
+        default=None,
+        alias="LLM_MODEL",
+        description=(
+            "Override the default model name for the selected LLM provider. "
+            "Defaults: gemini→gemini-2.0-flash-lite, openai→gpt-4o-mini, anthropic→claude-3-5-haiku-latest"
+        ),
+    )
+    gemini_api_key: SecretStr | None = Field(default=None, alias="GEMINI_API_KEY")
+    openai_api_key: SecretStr | None = Field(default=None, alias="OPENAI_API_KEY")
+    anthropic_api_key: SecretStr | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+
+    # Web search
+    tavily_api_key: SecretStr | None = Field(default=None, alias="TAVILY_API_KEY")
+    brave_search_api_key: SecretStr | None = Field(default=None, alias="BRAVE_SEARCH_API_KEY")
+
+    # Local business discovery
+    google_places_api_key: SecretStr | None = Field(default=None, alias="GOOGLE_PLACES_API_KEY")
+
+    # Email discovery and verification
+    hunter_api_key: SecretStr | None = Field(default=None, alias="HUNTER_API_KEY")
+
+    # Research job limits (tune during testing)
+    research_max_searches: int = Field(default=8, alias="RESEARCH_MAX_SEARCHES")
+    research_max_candidates: int = Field(default=30, alias="RESEARCH_MAX_CANDIDATES")
+    research_max_verified: int = Field(default=15, alias="RESEARCH_MAX_VERIFIED")
+
     @property
     def configured_resend(self) -> bool:
         return bool(self.resend_api_key and self.resend_from_email)
@@ -60,6 +93,39 @@ class Settings(DatabaseSettings):
     @property
     def configured_bolna(self) -> bool:
         return bool(self.bolna_api_key and self.bolna_agent_id and self.bolna_webhook_secret)
+
+    @property
+    def configured_llm(self) -> bool:
+        if self.llm_provider == "gemini":
+            return bool(self.gemini_api_key)
+        if self.llm_provider == "openai":
+            return bool(self.openai_api_key)
+        if self.llm_provider == "anthropic":
+            return bool(self.anthropic_api_key)
+        return False
+
+    @property
+    def configured_tavily(self) -> bool:
+        return bool(self.tavily_api_key)
+
+    @property
+    def configured_places(self) -> bool:
+        return bool(self.google_places_api_key)
+
+    @property
+    def configured_hunter(self) -> bool:
+        return bool(self.hunter_api_key)
+
+    def effective_llm_model(self) -> str:
+        """Return the configured model name, or the provider default."""
+        if self.llm_model:
+            return self.llm_model
+        defaults = {
+            "gemini": "gemini-2.0-flash-lite",
+            "openai": "gpt-4o-mini",
+            "anthropic": "claude-3-5-haiku-latest",
+        }
+        return defaults[self.llm_provider]
 
     @field_validator("supabase_url", mode="before")
     @classmethod

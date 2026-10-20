@@ -23,6 +23,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
     localStorage.setItem(storageKey, theme);
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) themeColor.setAttribute("content", theme === "dark" ? "#0c0c0c" : "#f6f8f7");
   }, [theme]);
 
   const value = useMemo(() => ({

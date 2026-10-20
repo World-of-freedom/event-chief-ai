@@ -1,8 +1,8 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 
 import { useAuth } from "@/auth/AuthProvider";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AuthLayout } from "@/components/AuthLayout";
 
 type AuthMode = "sign-in" | "sign-up" | "forgot-password";
 
@@ -46,7 +46,17 @@ export function AuthPage() {
   }
 
   if (!configured) {
-    return <AuthFrame><section className="auth-card setup-card"><p className="eyebrow">Configuration required</p><h1>Connect Supabase to continue</h1><p>Add your project URL and publishable key to <code>frontend/.env</code>, restart Vite, then come back to sign in.</p><pre>VITE_SUPABASE_URL=https://your-project.supabase.co{"\n"}VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…</pre><p className="auth-fine-print">Use a publishable or legacy anon key only. Never put a service-role key in the browser.</p></section></AuthFrame>;
+    return (
+      <AuthLayout visual={<>Connect once.<br />Keep the workspace focused.</>}>
+        <section className="auth-card setup-card">
+          <p className="eyebrow">Configuration required</p>
+          <h1>Connect Supabase to continue</h1>
+          <p>Add your project URL and publishable key to <code>frontend/.env</code>, restart Vite, then come back to sign in.</p>
+          <pre>VITE_SUPABASE_URL=https://your-project.supabase.co{"\n"}VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…</pre>
+          <p className="auth-fine-print">Use a publishable or legacy anon key only. Never put a service-role key in the browser.</p>
+        </section>
+      </AuthLayout>
+    );
   }
 
   const isPasswordRequired = mode !== "forgot-password";
@@ -54,14 +64,33 @@ export function AuthPage() {
   const subheading = mode === "sign-in" ? "Sign in to manage your event sponsorship work." : mode === "sign-up" ? "Start with a secure organizer account." : "We’ll send a secure password-reset link to your inbox.";
 
   return (
-    <AuthFrame>
+    <AuthLayout visual={<>Organize what matters.<br />Secure support with confidence.</>}>
       <section className="auth-card">
-        <div className="auth-brand"><span className="brand-mark">EC</span><span>Event Chief AI</span></div>
-        <div className="auth-copy"><h1>{heading}</h1><p>{subheading}</p></div>
-        {mode !== "forgot-password" ? <div className="auth-tabs" role="tablist" aria-label="Authentication options"><button type="button" role="tab" aria-selected={mode === "sign-in"} className={mode === "sign-in" ? "selected" : ""} onClick={() => switchMode("sign-in")}>Sign in</button><button type="button" role="tab" aria-selected={mode === "sign-up"} className={mode === "sign-up" ? "selected" : ""} onClick={() => switchMode("sign-up")}>Create account</button></div> : null}
+        <div className="auth-brand">
+          <span className="brand-mark">EC</span>
+          <span>Event Chief AI</span>
+        </div>
+        <div className="auth-copy">
+          <h1>{heading}</h1>
+          <p>{subheading}</p>
+        </div>
+        {mode !== "forgot-password" ? (
+          <div className="auth-tabs" role="tablist" aria-label="Authentication options">
+            <button type="button" role="tab" aria-selected={mode === "sign-in"} className={mode === "sign-in" ? "selected" : ""} onClick={() => switchMode("sign-in")}>Sign in</button>
+            <button type="button" role="tab" aria-selected={mode === "sign-up"} className={mode === "sign-up" ? "selected" : ""} onClick={() => switchMode("sign-up")}>Create account</button>
+          </div>
+        ) : null}
         <form className="auth-form" onSubmit={submit}>
-          <label><span>Email address</span><input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder="you@example.com" /></label>
-          {isPasswordRequired ? <label><span>Password</span><input type="password" autoComplete={mode === "sign-up" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} placeholder="At least 8 characters" /></label> : null}
+          <label>
+            <span>Email address</span>
+            <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder="you@example.com" />
+          </label>
+          {isPasswordRequired ? (
+            <label>
+              <span>Password</span>
+              <input type="password" autoComplete={mode === "sign-up" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} placeholder="At least 8 characters" />
+            </label>
+          ) : null}
           {error ? <p className="auth-message error" role="alert">{error}</p> : null}
           {notice ? <p className="auth-message success" role="status">{notice}</p> : null}
           <button className="button auth-submit" disabled={pending}>{pending ? "Please wait…" : mode === "sign-in" ? "Sign in" : mode === "sign-up" ? "Create account" : "Send reset link"}</button>
@@ -71,10 +100,6 @@ export function AuthPage() {
         {mode === "sign-up" ? <p className="auth-fine-print">By creating an account, you will be asked to verify this email before access is granted when confirmation is enabled.</p> : null}
         {returnPath !== "/" && mode === "sign-in" ? <p className="auth-fine-print">Sign in to return to the page you requested.</p> : null}
       </section>
-    </AuthFrame>
+    </AuthLayout>
   );
-}
-
-function AuthFrame({ children }: { children: ReactNode }) {
-  return <main className="auth-layout"><div className="auth-theme"><ThemeToggle /></div><div className="auth-visual" aria-hidden="true"><span className="auth-orb orb-one" /><span className="auth-orb orb-two" /><p>Organize what matters.<br />Secure support with confidence.</p></div><div className="auth-panel">{children}</div></main>;
 }

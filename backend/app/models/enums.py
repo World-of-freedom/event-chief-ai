@@ -128,6 +128,39 @@ class WebhookProcessingStatus(str, Enum):
     FAILED = "failed"
 
 
+class ResearchJobStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class LeadVerificationStatus(str, Enum):
+    RAW = "raw"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+
+
+class EvidenceType(str, Enum):
+    SPONSORSHIP_HISTORY = "sponsorship_history"
+    BRAND_PARTNERSHIP = "brand_partnership"
+    LOCAL_PRESENCE = "local_presence"
+    AUDIENCE_ALIGNMENT = "audience_alignment"
+    CONTACT_PAGE = "contact_page"
+    SOCIAL_MEDIA = "social_media"
+    NEWS_MENTION = "news_mention"
+    OTHER = "other"
+
+
+class OutreachLeadStatus(str, Enum):
+    SHORTLISTED = "shortlisted"
+    CONTACTED = "contacted"
+    RESPONDED = "responded"
+    REJECTED = "rejected"
+    CONVERTED = "converted"
+
+
 def db_enum(enum_class: type[Enum], name: str) -> SqlEnum:
     """Store enum values, not Python member names, with a named check constraint."""
     return SqlEnum(
