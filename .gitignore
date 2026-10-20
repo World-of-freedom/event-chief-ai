@@ -1,0 +1,14 @@
+.env
+.env.*
+frontend/.env
+backend/.env
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+node_modules/
+dist/
+.DS_Store
+
