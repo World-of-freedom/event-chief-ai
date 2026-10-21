@@ -20,7 +20,7 @@ def get_llm(provider: str, model: str, api_key: str) -> BaseChatModel:
 
     Args:
         provider: "gemini" | "openai" | "anthropic"
-        model: Model identifier string (e.g. "gemini-2.5-flash", "gpt-4o-mini", etc.)
+        model: Model identifier string (e.g. "gemini-3.5-flash-lite", "gpt-4o-mini", etc.)
         api_key: Plaintext API key for the provider.
 
     Returns:
@@ -32,7 +32,7 @@ def get_llm(provider: str, model: str, api_key: str) -> BaseChatModel:
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
             return ChatGoogleGenerativeAI(
-                model=model or "gemini-2.0-flash",
+                model=model or "gemini-3.5-flash-lite",
                 google_api_key=api_key,
                 temperature=0.1,
                 max_retries=2,

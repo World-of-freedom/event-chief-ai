@@ -39,13 +39,9 @@ class DatabaseSettings(BaseSettings):
 
 
 class Settings(DatabaseSettings):
-    # Optional in the scaffold so `/health` works before integrations are configured.
+    # Match the project’s actual env contract: SUPABASE_URL, SUPABASE_CONNECTION_STRING, SUPABASE_KEY.
     supabase_url: AnyHttpUrl | None = Field(default=None, validation_alias="SUPABASE_URL")
-    supabase_publishable_key: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_KEY"),
-    )
-    supabase_service_role_key: str | None = Field(default=None, validation_alias="SUPABASE_SERVICE_ROLE_KEY")
+    supabase_key: str | None = Field(default=None, validation_alias="SUPABASE_KEY")
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
     resend_from_email: str | None = Field(default=None, alias="RESEND_FROM_EMAIL")
     bolna_api_key: str | None = Field(default=None, alias="BOLNA_API_KEY")
@@ -64,7 +60,7 @@ class Settings(DatabaseSettings):
         alias="LLM_MODEL",
         description=(
             "Override the default model name for the selected LLM provider. "
-            "Defaults: gemini→gemini-2.0-flash-lite, openai→gpt-4o-mini, anthropic→claude-3-5-haiku-latest"
+            "Defaults: gemini→gemini-3.5-flash-lite, openai→gpt-4o-mini, anthropic→claude-3-5-haiku-latest"
         ),
     )
     gemini_api_key: SecretStr | None = Field(default=None, alias="GEMINI_API_KEY")
@@ -121,7 +117,7 @@ class Settings(DatabaseSettings):
         if self.llm_model:
             return self.llm_model
         defaults = {
-            "gemini": "gemini-2.0-flash-lite",
+            "gemini": "gemini-3.5-flash-lite",
             "openai": "gpt-4o-mini",
             "anthropic": "claude-3-5-haiku-latest",
         }
@@ -137,14 +133,19 @@ class Settings(DatabaseSettings):
             )
         return value
 
+    @field_validator("supabase_key", mode="before")
+    @classmethod
+    def normalize_supabase_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return value.strip()
+
     def require_supabase_auth_key(self) -> str:
-        """Use service role when available; publishable key only verifies bearer tokens."""
-        if self.supabase_service_role_key:
-            return self.supabase_service_role_key
-        if self.supabase_publishable_key:
-            return self.supabase_publishable_key
+        """Return the configured Supabase auth key used by the backend for token validation."""
+        if self.supabase_key:
+            return self.supabase_key
         raise RuntimeError(
-            "Configure SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY before enabling token validation."
+            "Configure SUPABASE_KEY with the Supabase auth key before enabling token validation."
         )
 
 

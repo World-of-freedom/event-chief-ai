@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, Uuid, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,7 +31,7 @@ class OutreachMessage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     subject: Mapped[str | None] = mapped_column(String(200))
     body: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[MessageStatus] = mapped_column(db_enum(MessageStatus, "message_status"), nullable=False, default=MessageStatus.DRAFT, server_default="draft")
-    approved_by: Mapped[UUID | None] = mapped_column(ForeignKey("auth.users.id"))
+    approved_by: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("auth.users.id"))
     approved_at: Mapped[datetime | None] = mapped_column()
     provider_message_id: Mapped[str | None] = mapped_column(String(255))
     send_idempotency_key: Mapped[UUID] = mapped_column(nullable=False, server_default=text("gen_random_uuid()"))
@@ -53,9 +53,9 @@ class Call(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     recording_url: Mapped[str | None] = mapped_column(Text)
     extracted_fields: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     review_status: Mapped[ReviewStatus] = mapped_column(db_enum(ReviewStatus, "review_status"), nullable=False, default=ReviewStatus.NEEDS_REVIEW, server_default="needs_review")
-    approved_by: Mapped[UUID | None] = mapped_column(ForeignKey("auth.users.id"))
+    approved_by: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("auth.users.id"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    consent_confirmed_by: Mapped[UUID | None] = mapped_column(ForeignKey("auth.users.id"))
+    consent_confirmed_by: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("auth.users.id"))
     consent_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -80,7 +80,7 @@ class Offer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[OfferStatus] = mapped_column(db_enum(OfferStatus, "offer_status"), nullable=False, default=OfferStatus.PROPOSED, server_default="proposed")
     evidence_notes: Mapped[str | None] = mapped_column(Text)
     evidence_url: Mapped[str | None] = mapped_column(Text)
-    organizer_verified_by: Mapped[UUID | None] = mapped_column(ForeignKey("auth.users.id"))
+    organizer_verified_by: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("auth.users.id"))
     organizer_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sponsor_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -90,7 +90,7 @@ class Offer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class FollowUpTask(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "follow_up_tasks"
 
-    owner_id: Mapped[UUID] = mapped_column(ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True)
     opportunity_id: Mapped[UUID] = mapped_column(ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)

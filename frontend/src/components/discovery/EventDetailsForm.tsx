@@ -149,7 +149,7 @@ export function EventDetailsForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-[var(--surface-raised)] border border-[var(--line)] rounded-xl p-6 shadow-sm flex flex-col gap-5 max-w-4xl mx-auto"
+      className="discovery-form discovery-panel max-w-5xl mx-auto"
     >
       {/* Header with Quick Presets */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[var(--line)]">
@@ -191,15 +191,11 @@ export function EventDetailsForm({
       </div>
 
       {/* Step Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[var(--line)] pb-2 text-xs">
+      <div className="discovery-tabs">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-            activeTab === "overview"
-              ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-              : "text-[var(--muted)] hover:text-[var(--text)]"
-          }`}
+          className={activeTab === "overview" ? "active flex items-center gap-1.5" : "flex items-center gap-1.5"}
         >
           <Layers className="w-4 h-4" />
           1. Event & Logistics
@@ -208,11 +204,7 @@ export function EventDetailsForm({
         <button
           type="button"
           onClick={() => setActiveTab("audience")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-            activeTab === "audience"
-              ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-              : "text-[var(--muted)] hover:text-[var(--text)]"
-          }`}
+          className={activeTab === "audience" ? "active flex items-center gap-1.5" : "flex items-center gap-1.5"}
         >
           <Users className="w-4 h-4" />
           2. Target Audience & Persona
@@ -221,11 +213,7 @@ export function EventDetailsForm({
         <button
           type="button"
           onClick={() => setActiveTab("sponsorship")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-            activeTab === "sponsorship"
-              ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-              : "text-[var(--muted)] hover:text-[var(--text)]"
-          }`}
+          className={activeTab === "sponsorship" ? "active flex items-center gap-1.5" : "flex items-center gap-1.5"}
         >
           <DollarSign className="w-4 h-4" />
           3. Sponsorship Target & Value Prop
@@ -234,9 +222,9 @@ export function EventDetailsForm({
 
       {/* Tab 1: Event & Logistics */}
       {activeTab === "overview" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+        <div className="field-grid">
+          <div className="field-group sm:col-span-2">
+            <label>
               Event Name *
             </label>
             <input
@@ -245,18 +233,18 @@ export function EventDetailsForm({
               placeholder="e.g. HackSprint 2026, Annual TechCon, Oasis Fest"
               value={formData.event_name}
               onChange={(e) => setFormData({ ...formData, event_name: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Event Type *
             </label>
             <select
               value={formData.event_type}
               onChange={(e) => setFormData({ ...formData, event_type: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             >
               <option value="hackathon">Hackathon / Coding Sprint</option>
               <option value="tech_conference">Tech Conference / Summit</option>
@@ -269,8 +257,8 @@ export function EventDetailsForm({
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Host Institution / Organization
             </label>
             <input
@@ -278,12 +266,12 @@ export function EventDetailsForm({
               placeholder="e.g. IIT Delhi, BITS Pilani, Rotary Club"
               value={formData.institution_name || ""}
               onChange={(e) => setFormData({ ...formData, institution_name: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Event Theme or Tagline
             </label>
             <input
@@ -291,18 +279,18 @@ export function EventDetailsForm({
               placeholder="e.g. AI for Sustainability, Innovate Beyond Boundaries"
               value={formData.event_theme || ""}
               onChange={(e) => setFormData({ ...formData, event_theme: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Format
             </label>
             <select
               value={formData.event_format || "in_person"}
               onChange={(e) => setFormData({ ...formData, event_format: e.target.value as any })}
-              className="w-full text-sm"
+              className="field"
             >
               <option value="in_person">In-Person at Venue</option>
               <option value="hybrid">Hybrid (Physical + Virtual Stream)</option>
@@ -310,25 +298,25 @@ export function EventDetailsForm({
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               City (Location) *
             </label>
-            <div className="relative">
-              <MapPin className="w-4 h-4 absolute left-3 top-3 text-[var(--muted)]" />
+            <div className="field-with-icon">
+              <MapPin className="w-4 h-4" />
               <input
                 type="text"
                 required
                 placeholder="e.g. Bengaluru, New Delhi, Mumbai, Pune, Hyderabad"
                 value={formData.venue_city}
                 onChange={(e) => setFormData({ ...formData, venue_city: e.target.value })}
-                className="w-full text-sm pl-9"
+                className="field field-icon"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               State / Region
             </label>
             <input
@@ -336,36 +324,36 @@ export function EventDetailsForm({
               placeholder="e.g. Karnataka, Maharashtra, Delhi NCR"
               value={formData.venue_state || ""}
               onChange={(e) => setFormData({ ...formData, venue_state: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Start Date
             </label>
             <input
               type="date"
               value={formData.start_date || ""}
               onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               End Date
             </label>
             <input
               type="date"
               value={formData.end_date || ""}
               onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
           </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group sm:col-span-2">
+            <label>
               Event Description & Context
             </label>
             <textarea
@@ -373,7 +361,7 @@ export function EventDetailsForm({
               placeholder="Short summary of what happens at the event, its scale and reputation."
               value={formData.event_description || ""}
               onChange={(e) => setFormData({ ...formData, event_description: e.target.value })}
-              className="w-full text-sm p-2 rounded-lg border border-[var(--line-strong)] bg-[var(--surface-raised)]"
+              className="field field-textarea"
             />
           </div>
         </div>
@@ -382,12 +370,12 @@ export function EventDetailsForm({
       {/* Tab 2: Target Audience & Persona */}
       {activeTab === "audience" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Expected Footfall / Attendees
             </label>
-            <div className="relative">
-              <Users className="w-4 h-4 absolute left-3 top-3 text-[var(--muted)]" />
+            <div className="field-with-icon">
+              <Users className="w-4 h-4" />
               <input
                 type="number"
                 min="10"
@@ -400,16 +388,16 @@ export function EventDetailsForm({
                     expected_footfall: e.target.value ? parseInt(e.target.value) : undefined,
                   })
                 }
-                className="w-full text-sm pl-9"
+                className="field field-icon"
               />
             </div>
-            <span className="text-[11px] text-[var(--muted)] mt-0.5 block">
+            <span className="field-hint">
               Helps determine appropriate sponsor size and reach.
             </span>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Target Age Group
             </label>
             <input
@@ -417,12 +405,12 @@ export function EventDetailsForm({
               placeholder="e.g. 18-24, 21-35, High School & College"
               value={formData.audience_age_range || ""}
               onChange={(e) => setFormData({ ...formData, audience_age_range: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
           </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group sm:col-span-2">
+            <label>
               Primary Audience Persona
             </label>
             <input
@@ -430,12 +418,12 @@ export function EventDetailsForm({
               placeholder="e.g. Undergrad CS students, software engineers, young founders, music lovers"
               value={formData.primary_audience || ""}
               onChange={(e) => setFormData({ ...formData, primary_audience: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
           </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group sm:col-span-2">
+            <label>
               Academic Disciplines & Interests
             </label>
             <input
@@ -443,9 +431,9 @@ export function EventDetailsForm({
               placeholder="e.g. Computer Science, AI/ML, Robotics, Design, Commerce, BioTech"
               value={formData.academic_disciplines || ""}
               onChange={(e) => setFormData({ ...formData, academic_disciplines: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
-            <span className="text-[11px] text-[var(--muted)] mt-0.5 block">
+            <span className="field-hint">
               Used to match niche technology and industry sponsors.
             </span>
           </div>
@@ -455,12 +443,12 @@ export function EventDetailsForm({
       {/* Tab 3: Sponsorship Target & Value Prop */}
       {activeTab === "sponsorship" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Target Sponsorship Budget (INR ₹)
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-2.5 text-sm font-semibold text-[var(--muted)]">₹</span>
+            <div className="field-with-icon field-with-prefix">
+              <span>₹</span>
               <input
                 type="number"
                 min="0"
@@ -473,13 +461,13 @@ export function EventDetailsForm({
                     budget_target_inr: e.target.value ? parseFloat(e.target.value) : undefined,
                   })
                 }
-                className="w-full text-sm pl-8"
+                className="field field-icon"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group">
+            <label>
               Previous Sponsors / Hints
             </label>
             <input
@@ -487,18 +475,18 @@ export function EventDetailsForm({
               placeholder="e.g. Google Cloud, Red Bull, Postman, Dell"
               value={formData.previous_sponsors_hint || ""}
               onChange={(e) => setFormData({ ...formData, previous_sponsors_hint: e.target.value })}
-              className="w-full text-sm"
+              className="field"
             />
-            <span className="text-[11px] text-[var(--muted)] mt-0.5 block">
+            <span className="field-hint">
               Helps find competitors or similar brands that sponsor events.
             </span>
           </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-[var(--text)] mb-2">
+          <div className="field-group sm:col-span-2">
+            <label>
               Support Types Needed (Select all that apply)
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="chip-group">
               {supportTypeOptions.map((opt) => {
                 const isSelected = (formData.support_types_needed || []).includes(opt.value);
                 return (
@@ -506,11 +494,7 @@ export function EventDetailsForm({
                     key={opt.value}
                     type="button"
                     onClick={() => handleToggleSupportType(opt.value)}
-                    className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-all ${
-                      isSelected
-                        ? "bg-[var(--accent)] text-[var(--accent-foreground)] border-[var(--accent)]"
-                        : "bg-[var(--surface-muted)] text-[var(--text)] border-[var(--line)] hover:border-[var(--accent)]"
-                    }`}
+                    className={`chip ${isSelected ? "chip-selected" : ""}`}
                   >
                     {opt.label}
                   </button>
@@ -519,8 +503,8 @@ export function EventDetailsForm({
             </div>
           </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-[var(--text)] mb-1">
+          <div className="field-group sm:col-span-2">
+            <label>
               Key Deliverables & Benefits Offered to Sponsors
             </label>
             <textarea
@@ -528,7 +512,7 @@ export function EventDetailsForm({
               placeholder="e.g. Keynote speech, Booth space, Resume database, Logo on badges, Social media shoutouts"
               value={formData.sponsor_benefits || ""}
               onChange={(e) => setFormData({ ...formData, sponsor_benefits: e.target.value })}
-              className="w-full text-sm p-2 rounded-lg border border-[var(--line-strong)] bg-[var(--surface-raised)]"
+              className="field field-textarea"
             />
           </div>
         </div>

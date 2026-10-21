@@ -443,6 +443,186 @@ select:focus-visible {
 
 .page-actions { flex: none; }
 
+.discovery-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.discovery-panel {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface-raised);
+  box-shadow: 0 16px 30px rgb(15 23 42 / 4%);
+}
+
+.discovery-summary {
+  padding: 14px 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 90%, var(--surface-muted)), var(--surface-raised));
+}
+
+.discovery-error {
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--danger-soft) 65%, transparent);
+  color: var(--danger);
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.discovery-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 22px 22px 18px;
+}
+
+.discovery-form .field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.discovery-form .field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.discovery-form label {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.discovery-form .field,
+.discovery-form textarea,
+.discovery-form select {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.discovery-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.discovery-form .field:focus,
+.discovery-form textarea:focus,
+.discovery-form select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  background: var(--surface-raised);
+}
+
+.discovery-form .field-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.discovery-form .field-with-icon svg {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.discovery-form .field-with-prefix {
+  padding-left: 10px;
+}
+
+.discovery-form .field-with-prefix > span {
+  position: absolute;
+  left: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.discovery-form .field-icon {
+  padding-left: 36px;
+}
+
+.discovery-form .field-textarea {
+  min-height: 96px;
+}
+
+.discovery-form .field-hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.discovery-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.discovery-tabs button {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.discovery-tabs button:hover {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.discovery-tabs button.active {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text);
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chip-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
 .template-notice {
   display: flex;
   gap: 12px;

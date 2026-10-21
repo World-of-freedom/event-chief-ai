@@ -37,6 +37,12 @@ router = APIRouter(prefix="/research-jobs", tags=["research"])
 leads_router = APIRouter(prefix="/leads", tags=["leads"])
 
 
+def _user_uuid(user: Any) -> UUID:
+    """Normalize user id from CurrentUser or string to a UUID object."""
+    uid = getattr(user, "uuid", None) or getattr(user, "id", user)
+    return uid if isinstance(uid, UUID) else UUID(str(uid))
+
+
 @router.post("", response_model=ResearchJobOut, status_code=status.HTTP_201_CREATED)
 def create_research_job(
     body: ResearchJobCreate,
@@ -46,8 +52,9 @@ def create_research_job(
     settings: Settings = Depends(get_settings),
 ):
     """Create a new sponsor discovery research job and trigger async research."""
+    owner_id = _user_uuid(current_user)
     job = ResearchJob(
-        owner_id=current_user.id,
+        owner_id=owner_id,
         event_id=body.event_id,
         event_name=body.event_name,
         event_type=body.event_type,
@@ -93,9 +100,10 @@ def list_research_jobs(
     limit: int = Query(default=20, le=100),
 ):
     """List all research jobs created by the current user."""
+    owner_id = _user_uuid(current_user)
     jobs = (
         db.query(ResearchJob)
-        .filter(ResearchJob.owner_id == current_user.id)
+        .filter(ResearchJob.owner_id == owner_id)
         .order_by(desc(ResearchJob.created_at))
         .limit(limit)
         .all()
@@ -110,9 +118,10 @@ def get_research_job(
     db: Session = Depends(get_db_session),
 ):
     """Get status, progress percentage, and metrics of a research job."""
+    owner_id = _user_uuid(current_user)
     job = (
         db.query(ResearchJob)
-        .filter(ResearchJob.id == job_id, ResearchJob.owner_id == current_user.id)
+        .filter(ResearchJob.id == job_id, ResearchJob.owner_id == owner_id)
         .first()
     )
     if not job:
@@ -127,12 +136,13 @@ def get_job_leads(
     db: Session = Depends(get_db_session),
 ):
     """Retrieve full research results: job snapshot + ranked sponsor leads with evidence."""
+    owner_id = _user_uuid(current_user)
     job = (
         db.query(ResearchJob)
         .options(
             selectinload(ResearchJob.leads).selectinload(SponsorLead.evidence)
         )
-        .filter(ResearchJob.id == job_id, ResearchJob.owner_id == current_user.id)
+        .filter(ResearchJob.id == job_id, ResearchJob.owner_id == owner_id)
         .first()
     )
     if not job:
@@ -150,11 +160,12 @@ def get_lead_details(
     db: Session = Depends(get_db_session),
 ):
     """Retrieve full details for a single sponsor lead, including evidence."""
+    owner_id = _user_uuid(current_user)
     lead = (
         db.query(SponsorLead)
         .options(selectinload(SponsorLead.evidence))
         .join(ResearchJob, SponsorLead.job_id == ResearchJob.id)
-        .filter(SponsorLead.id == lead_id, ResearchJob.owner_id == current_user.id)
+        .filter(SponsorLead.id == lead_id, ResearchJob.owner_id == owner_id)
         .first()
     )
     if not lead:

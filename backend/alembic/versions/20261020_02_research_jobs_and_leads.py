@@ -46,7 +46,7 @@ def upgrade() -> None:
     op.create_table(
         "research_jobs",
         _id(),
-        sa.Column("owner_id", sa.Uuid(), sa.ForeignKey("auth.users(id)", ondelete="CASCADE"), nullable=False),
+        sa.Column("owner_id", sa.Uuid(), sa.ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("event_id", sa.Uuid(), sa.ForeignKey("events.id", ondelete="SET NULL"), nullable=True),
 
         # Event snapshot
@@ -197,7 +197,7 @@ def upgrade() -> None:
         "lead_outreach",
         _id(),
         sa.Column("lead_id", sa.Uuid(), sa.ForeignKey("sponsor_leads.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("owner_id", sa.Uuid(), sa.ForeignKey("auth.users(id)", ondelete="CASCADE"), nullable=False),
+        sa.Column("owner_id", sa.Uuid(), sa.ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("status", _enum("shortlisted", "contacted", "responded", "rejected", "converted",
                                   name="lead_outreach_status"), nullable=False, server_default="shortlisted"),
         sa.Column("notes", sa.Text(), nullable=True),

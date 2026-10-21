@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 class Prospect(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "prospects"
 
-    owner_id: Mapped[UUID] = mapped_column(ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True)
     company_name: Mapped[str] = mapped_column(String(180), nullable=False)
     website_url: Mapped[str | None] = mapped_column(Text)
     industry: Mapped[str | None] = mapped_column(String(100), index=True)
@@ -66,7 +66,7 @@ class OpportunityStatusHistory(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     opportunity_id: Mapped[UUID] = mapped_column(ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True)
     previous_status: Mapped[OpportunityStatus | None] = mapped_column(db_enum(OpportunityStatus, "opportunity_status_previous"))
     new_status: Mapped[OpportunityStatus] = mapped_column(db_enum(OpportunityStatus, "opportunity_status_next"), nullable=False)
-    changed_by: Mapped[UUID] = mapped_column(ForeignKey("auth.users.id"), nullable=False)
+    changed_by: Mapped[UUID] = mapped_column(Uuid, ForeignKey("auth.users.id"), nullable=False)
     reason: Mapped[str | None] = mapped_column(Text)
 
     opportunity: Mapped[Opportunity] = relationship(back_populates="status_history")

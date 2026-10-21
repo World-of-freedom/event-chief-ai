@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,7 +41,8 @@ class ResearchJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # Owner and event linkage (event_id is optional — jobs can be run without a saved event)
     owner_id: Mapped[UUID] = mapped_column(
-        ForeignKey("auth.users(id)", ondelete="CASCADE"),
+        Uuid,
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -194,7 +196,8 @@ class LeadOutreach(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )
     owner_id: Mapped[UUID] = mapped_column(
-        ForeignKey("auth.users(id)", ondelete="CASCADE"),
+        Uuid,
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

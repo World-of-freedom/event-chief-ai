@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException, status
 
@@ -9,6 +10,10 @@ from app.core.supabase import get_supabase
 class CurrentUser:
     id: str
     email: str | None
+
+    @property
+    def uuid(self) -> UUID:
+        return UUID(self.id)
 
 
 def get_current_user(authorization: str | None = Header(default=None)) -> CurrentUser:

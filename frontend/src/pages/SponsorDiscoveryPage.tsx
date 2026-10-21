@@ -113,7 +113,8 @@ export function SponsorDiscoveryPage() {
       setLeads([]);
       setShowCreateForm(false);
     } catch (err: any) {
-      alert(`Failed to launch research job: ${err.message}`);
+      const message = err?.message || "Failed to launch research job.";
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -266,10 +267,16 @@ export function SponsorDiscoveryPage() {
           </button>
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="discovery-shell">
+          {errorMessage && (
+            <div className="discovery-error" role="alert">
+              {errorMessage}
+            </div>
+          )}
+
           {/* Job Selector Bar (when multiple jobs exist) */}
           {jobs.length > 0 && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border border-[var(--line)] bg-[var(--surface-muted)] text-xs">
+            <div className="discovery-panel discovery-summary flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 text-xs">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-[var(--muted-strong)]">Active Research Run:</span>
                 <select
