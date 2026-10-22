@@ -22,7 +22,9 @@ const extraLabels: Record<string, string> = {
 export function routeLabelForPath(pathname: string) {
   const exact = [...appRoutes, ...comingSoonRoutes].find((route) => route.to === pathname);
   if (exact) return exact.label;
-  if (pathname.startsWith("/discovery/")) return "Prospect";
+  if (pathname === "/discovery/new") return "New Sponsor Discovery";
+  if (pathname.startsWith("/discovery/leads/")) return "Prospect";
+  if (pathname.startsWith("/discovery/")) return "Sponsor discovery";
   if (pathname.startsWith("/outreach/")) return "Outreach";
   if (pathname.startsWith("/calls/")) return "Call review";
   return extraLabels[pathname] ?? "Workspace";

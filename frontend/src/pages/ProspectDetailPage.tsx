@@ -1,41 +1,41 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  Building2,
-  Globe,
-  Mail,
-  Phone,
-  MapPin,
-  ExternalLink,
-  Sparkles,
-  ShieldCheck,
   ArrowLeft,
-  Copy,
+  Building2,
   Check,
+  Copy,
+  ExternalLink,
+  Globe,
   Loader2,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { LinkedinIcon, TwitterIcon } from "@/components/icons/SocialIcons";
 
 import { PageHeader } from "@/components/PageHeader";
-import { ScoreBadge } from "@/components/discovery/ScoreBadge";
 import { LeadEvidenceList } from "@/components/discovery/LeadEvidenceList";
+import { ScoreBadge } from "@/components/discovery/ScoreBadge";
 import { getLeadDetails } from "@/lib/api/research";
 import type { SponsorLead } from "@/types/domain";
 
 export function ProspectDetailPage() {
-  const { prospectId } = useParams<{ prospectId: string }>();
+  const { leadId } = useParams<{ leadId: string }>();
   const [lead, setLead] = useState<SponsorLead | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedEmail, setCopiedEmail] = useState(false);
 
   useEffect(() => {
-    if (!prospectId) return;
+    if (!leadId) return;
 
     let isMounted = true;
     setIsLoading(true);
 
-    getLeadDetails(prospectId)
+    getLeadDetails(leadId)
       .then((data) => {
         if (isMounted) setLead(data);
       })
@@ -49,7 +49,7 @@ export function ProspectDetailPage() {
     return () => {
       isMounted = false;
     };
-  }, [prospectId]);
+  }, [leadId]);
 
   const handleCopyEmail = () => {
     if (lead?.contact_email) {
@@ -63,7 +63,7 @@ export function ProspectDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center p-16 gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
-        <p className="text-sm text-[var(--muted)]">Loading verified sponsor lead details…</p>
+        <p className="text-sm text-[var(--muted)]">Loading sponsor lead details…</p>
       </div>
     );
   }
@@ -90,7 +90,7 @@ export function ProspectDetailPage() {
           to="/discovery"
           className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)] hover:text-[var(--accent)] font-medium"
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Discovery Leads
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Sponsor Discovery
         </Link>
       </div>
 
@@ -99,16 +99,6 @@ export function ProspectDetailPage() {
         description={`Verified sponsor lead discovered via ${lead.discovery_source || "live web research"}.`}
         actions={
           <div className="flex items-center gap-2">
-            {lead.contact_email && (
-              <button
-                onClick={handleCopyEmail}
-                className="button button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
-              >
-                {copiedEmail ? <Check className="w-3.5 h-3.5 text-[var(--success)]" /> : <Copy className="w-3.5 h-3.5" />}
-                {copiedEmail ? "Copied" : "Copy Email"}
-              </button>
-            )}
-
             {lead.website_url && (
               <a
                 href={lead.website_url.startsWith("http") ? lead.website_url : `https://${lead.website_url}`}
@@ -117,7 +107,7 @@ export function ProspectDetailPage() {
                 className="button text-xs font-semibold px-3 py-1.5 flex items-center gap-1.5"
               >
                 <Globe className="w-3.5 h-3.5" />
-                Visit Official Website
+                Official Website
                 <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
               </a>
             )}
@@ -125,17 +115,15 @@ export function ProspectDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 my-6">
-        {/* Left Column: Company & Scoring Breakdown */}
-        <div className="lg:col-span-1 flex flex-col gap-6">
-          {/* Match Score Card */}
-          <div className="p-5 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider">
-                Overall Match Score
+      <div className="my-6 space-y-6">
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-5">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">
+                Match score {lead.score_total}/100
               </span>
               <span
-                className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
                   lead.confidence === "high"
                     ? "bg-[var(--success-soft)] text-[var(--success)]"
                     : lead.confidence === "medium"
@@ -143,169 +131,166 @@ export function ProspectDetailPage() {
                     : "bg-[var(--warning-soft)] text-[var(--warning)]"
                 }`}
               >
-                {lead.confidence} Confidence
+                {lead.confidence} confidence
               </span>
+              {lead.location && (
+                <span className="inline-flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {lead.location}
+                </span>
+              )}
             </div>
 
-            <ScoreBadge
-              score={lead.score_total}
-              showBreakdown={true}
-              breakdown={{
-                relevance: lead.score_relevance,
-                industryFit: lead.score_industry_fit,
-                sponsorshipHistory: lead.score_sponsorship_history,
-                geographicFit: lead.score_geographic_fit,
-                budgetCompatibility: lead.score_budget_compatibility,
-                contactability: lead.score_contactability,
-              }}
-            />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+                <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">Industry</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--text)]">{lead.industry || "General"}</p>
+              </div>
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+                <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">Domain</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--text)]">{lead.domain || "Not listed"}</p>
+              </div>
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+                <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">Discovery source</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--text)]">{lead.discovery_source || "Live web research"}</p>
+              </div>
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+                <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">Created</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--text)]">{new Date(lead.created_at).toLocaleDateString()}</p>
+              </div>
+            </div>
           </div>
+        </section>
 
-          {/* Quick Facts */}
-          <div className="p-5 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] flex flex-col gap-3 text-xs">
-            <h3 className="font-bold text-sm text-[var(--text)] m-0 pb-2 border-b border-[var(--line)]">
-              Company Profile
-            </h3>
-
-            <div>
-              <span className="text-[var(--muted)] block">Industry Sector:</span>
-              <span className="font-semibold text-[var(--text)]">{lead.industry || "General"}</span>
-            </div>
-
-            <div>
-              <span className="text-[var(--muted)] block">Location & Region:</span>
-              <span className="font-semibold text-[var(--text)] flex items-center gap-1 mt-0.5">
-                <MapPin className="w-3.5 h-3.5 text-[var(--muted)]" />
-                {lead.location || "Location not specified"}
-                {lead.distance_km !== null && (
-                  <span className="text-[var(--accent)] font-bold">({lead.distance_km} km)</span>
-                )}
-              </span>
-            </div>
-
-            {lead.domain && (
-              <div>
-                <span className="text-[var(--muted)] block">Domain:</span>
-                <span className="font-semibold text-[var(--text)]">{lead.domain}</span>
+        <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
+          <section className="space-y-6">
+            {lead.ranking_explanation && (
+              <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-5">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[var(--text)]">
+                  <Sparkles className="h-4 w-4 text-[var(--accent)]" />
+                  Why this match
+                </h3>
+                <p className="m-0 text-sm leading-relaxed text-[var(--muted-strong)]">{lead.ranking_explanation}</p>
               </div>
             )}
 
-            <div>
-              <span className="text-[var(--muted)] block">Discovery Date:</span>
-              <span className="font-semibold text-[var(--text)]">
-                {new Date(lead.created_at).toLocaleDateString()}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Rationale, Contacts & Cited Evidence */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          {/* Match Rationale Card */}
-          {lead.ranking_explanation && (
-            <div className="p-5 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] flex flex-col gap-2">
-              <h3 className="font-bold text-sm text-[var(--text)] m-0 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[var(--accent)]" />
-                AI Ranking Explanation
+            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-5">
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-[var(--text)]">
+                <ShieldCheck className="h-4 w-4 text-[var(--accent)]" />
+                Sponsor fit overview
               </h3>
-              <p className="text-sm text-[var(--muted-strong)] leading-relaxed m-0">
-                {lead.ranking_explanation}
-              </p>
+
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
+                <ScoreBadge
+                  score={lead.score_total}
+                  showBreakdown={true}
+                  breakdown={{
+                    relevance: lead.score_relevance,
+                    industryFit: lead.score_industry_fit,
+                    sponsorshipHistory: lead.score_sponsorship_history,
+                    geographicFit: lead.score_geographic_fit,
+                    budgetCompatibility: lead.score_budget_compatibility,
+                    contactability: lead.score_contactability,
+                  }}
+                />
+              </div>
             </div>
-          )}
 
-          {/* Verified Contact Channels */}
-          <div className="p-5 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] flex flex-col gap-3">
-            <h3 className="font-bold text-sm text-[var(--text)] m-0 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[var(--accent)]" />
-              Verified Public Contact Channels
-            </h3>
+            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-5">
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-[var(--text)]">
+                <Sparkles className="h-4 w-4 text-[var(--accent)]" />
+                Evidence
+              </h3>
+              <LeadEvidenceList evidence={lead.evidence || []} />
+            </div>
+          </section>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
-              <div className="p-3 rounded-lg bg-[var(--surface-muted)] border border-[var(--line)] flex flex-col gap-1">
-                <span className="text-[var(--muted)] flex items-center gap-1">
-                  <Mail className="w-3.5 h-3.5" /> Direct Email
-                </span>
+          <aside className="space-y-6">
+            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-5">
+              <h3 className="mb-4 text-sm font-bold text-[var(--text)]">Contact & links</h3>
+
+              <div className="space-y-3 text-sm">
                 {lead.contact_email ? (
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-[var(--text)] truncate">{lead.contact_email}</span>
-                    <button
-                      onClick={handleCopyEmail}
-                      className="text-[var(--accent)] hover:opacity-80 p-0.5"
-                      title="Copy email"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+                    <div className="flex items-center justify-between gap-2 text-[var(--muted)]">
+                      <span className="inline-flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> Email</span>
+                      <button onClick={handleCopyEmail} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]" title="Copy email">
+                        {copiedEmail ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                    <p className="mt-2 break-all text-[var(--text)] font-medium">{lead.contact_email}</p>
                   </div>
                 ) : (
-                  <span className="text-[var(--muted)] italic">Not publicly listed</span>
+                  <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface)] p-3 text-[var(--muted)]">No direct email found</div>
                 )}
-              </div>
 
-              <div className="p-3 rounded-lg bg-[var(--surface-muted)] border border-[var(--line)] flex flex-col gap-1">
-                <span className="text-[var(--muted)] flex items-center gap-1">
-                  <ExternalLink className="w-3.5 h-3.5" /> Sponsorship Portal
-                </span>
-                {lead.sponsorship_page_url ? (
+                {lead.contact_phone && (
+                  <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+                    <div className="inline-flex items-center gap-1.5 text-[var(--muted)]"><Phone className="h-3.5 w-3.5" /> Phone</div>
+                    <p className="mt-2 text-[var(--text)] font-medium">{lead.contact_phone}</p>
+                  </div>
+                )}
+
+                {lead.sponsorship_page_url && (
                   <a
                     href={lead.sponsorship_page_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-semibold text-[var(--accent)] hover:underline truncate"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-sm text-[var(--text)] hover:border-[var(--accent)]"
                   >
-                    Open Partnership Page →
+                    <span className="inline-flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 text-[var(--info)]" /> Sponsorship page</span>
+                    <ExternalLink className="h-3.5 w-3.5 text-[var(--muted)]" />
                   </a>
-                ) : (
-                  <span className="text-[var(--muted)] italic">No dedicated portal URL</span>
+                )}
+
+                {lead.linkedin_url && (
+                  <a
+                    href={lead.linkedin_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-sm text-[var(--text)] hover:border-[var(--accent)]"
+                  >
+                    <span className="inline-flex items-center gap-1.5"><LinkedinIcon className="h-3.5 w-3.5" /> LinkedIn</span>
+                    <ExternalLink className="h-3.5 w-3.5 text-[var(--muted)]" />
+                  </a>
+                )}
+
+                {lead.twitter_url && (
+                  <a
+                    href={lead.twitter_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-sm text-[var(--text)] hover:border-[var(--accent)]"
+                  >
+                    <span className="inline-flex items-center gap-1.5"><TwitterIcon className="h-3.5 w-3.5" /> X / Twitter</span>
+                    <ExternalLink className="h-3.5 w-3.5 text-[var(--muted)]" />
+                  </a>
                 )}
               </div>
-
-              {lead.contact_phone && (
-                <div className="p-3 rounded-lg bg-[var(--surface-muted)] border border-[var(--line)] flex flex-col gap-1">
-                  <span className="text-[var(--muted)] flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5" /> Phone Number
-                  </span>
-                  <span className="font-semibold text-[var(--text)]">{lead.contact_phone}</span>
-                </div>
-              )}
-
-              {(lead.linkedin_url || lead.twitter_url) && (
-                <div className="p-3 rounded-lg bg-[var(--surface-muted)] border border-[var(--line)] flex flex-col gap-1">
-                  <span className="text-[var(--muted)]">Social Channels</span>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    {lead.linkedin_url && (
-                      <a
-                        href={lead.linkedin_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[var(--accent)] hover:underline inline-flex items-center gap-1"
-                      >
-                        <LinkedinIcon className="w-3.5 h-3.5" /> LinkedIn
-                      </a>
-                    )}
-                    {lead.twitter_url && (
-                      <a
-                        href={lead.twitter_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[var(--accent)] hover:underline inline-flex items-center gap-1"
-                      >
-                        <TwitterIcon className="w-3.5 h-3.5" /> Twitter
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
 
-          {/* Full Evidence Citations */}
-          <div className="p-5 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)] flex flex-col gap-3">
-            <h3 className="font-bold text-sm text-[var(--text)] m-0">
-              Cited Evidence & Web Citations
-            </h3>
-            <LeadEvidenceList evidence={lead.evidence || []} />
-          </div>
+            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-5">
+              <h3 className="mb-3 text-sm font-bold text-[var(--text)]">Profile</h3>
+              <div className="space-y-3 text-sm text-[var(--muted)]">
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-2">
+                  <span>Domain</span>
+                  <span className="font-medium text-[var(--text)]">{lead.domain || "Not available"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-2">
+                  <span>Location</span>
+                  <span className="font-medium text-[var(--text)]">{lead.location || "Not specified"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-2">
+                  <span>Distance</span>
+                  <span className="font-medium text-[var(--text)]">{lead.distance_km !== null ? `${lead.distance_km} km` : "N/A"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 pb-1">
+                  <span>Verification</span>
+                  <span className="font-medium text-[var(--text)] capitalize">{lead.verification_status}</span>
+                </div>
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     </>
