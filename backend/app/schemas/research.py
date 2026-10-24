@@ -116,6 +116,7 @@ class ResearchJobOut(BaseModel):
     model_config = {"from_attributes": True}
 
     id: UUID
+    public_id: str
     owner_id: UUID
     event_id: UUID | None
 

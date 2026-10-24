@@ -22,6 +22,7 @@ from app.core.database import get_db_session
 from app.core.settings import Settings, get_settings
 from app.models.enums import LeadVerificationStatus, OutreachLeadStatus, ResearchJobStatus
 from app.models.research import LeadEvidence, LeadOutreach, ResearchJob, SponsorLead
+from app.repositories.sponsorship import get_owned_event
 from app.schemas.research import (
     LeadEvidenceOut,
     ResearchJobCreate,
@@ -53,6 +54,8 @@ def create_research_job(
 ):
     """Create a new sponsor discovery research job and trigger async research."""
     owner_id = _user_uuid(current_user)
+    if body.event_id and not get_owned_event(db, owner_id, body.event_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
     job = ResearchJob(
         owner_id=owner_id,
         event_id=body.event_id,
@@ -109,6 +112,24 @@ def list_research_jobs(
         .all()
     )
     return jobs
+
+
+@router.get("/by-public-id/{public_id}", response_model=ResearchJobOut)
+def get_research_job_by_public_id(
+    public_id: str,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    """Look up a research job by the short public ID used in frontend URLs."""
+    owner_id = _user_uuid(current_user)
+    job = (
+        db.query(ResearchJob)
+        .filter(ResearchJob.public_id == public_id, ResearchJob.owner_id == owner_id)
+        .first()
+    )
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research job not found.")
+    return job
 
 
 @router.get("/{job_id}", response_model=ResearchJobOut)

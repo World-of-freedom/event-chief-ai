@@ -22,6 +22,10 @@ export async function getResearchJob(jobId: string): Promise<ResearchJob> {
   return apiClient<ResearchJob>(`/research-jobs/${jobId}`);
 }
 
+export async function getResearchJobByPublicId(publicId: string): Promise<ResearchJob> {
+  return apiClient<ResearchJob>(`/research-jobs/by-public-id/${encodeURIComponent(publicId)}`);
+}
+
 export async function getJobLeads(jobId: string): Promise<ResearchJob> {
   return apiClient<ResearchJob>(`/research-jobs/${jobId}/leads`);
 }

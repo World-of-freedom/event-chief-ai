@@ -14,6 +14,21 @@ export class ApiError extends Error {
   }
 }
 
+/** Turn FastAPI error details (a string, or a list of validation errors) into readable text. */
+function formatErrorDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item: { loc?: unknown[]; msg?: string }) => {
+        const field = item.loc?.filter((part) => part !== "body" && typeof part === "string").join(".");
+        const message = (item.msg ?? "Invalid value").replace(/^Value error, /, "");
+        return field ? `${field.replace(/_/g, " ")}: ${message}` : message;
+      })
+      .join("; ");
+  }
+  return JSON.stringify(detail);
+}
+
 export async function apiClient<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -47,7 +62,7 @@ export async function apiClient<T>(
     try {
       errorData = await response.json();
       if (errorData?.detail) {
-        errorDetail = typeof errorData.detail === "string" ? errorData.detail : JSON.stringify(errorData.detail);
+        errorDetail = formatErrorDetail(errorData.detail);
       }
     } catch {
       // JSON parse error — use status text

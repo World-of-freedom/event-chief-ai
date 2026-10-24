@@ -11,7 +11,12 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const storageKey = "event-chief-theme";
 
 function preferredTheme(): Theme {
-  const saved = localStorage.getItem(storageKey);
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(storageKey);
+  } catch {
+    // Storage can be unavailable (private mode); fall back to the system preference.
+  }
   if (saved === "light" || saved === "dark") return saved;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
@@ -21,8 +26,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
     document.documentElement.style.colorScheme = theme;
-    localStorage.setItem(storageKey, theme);
+    try {
+      localStorage.setItem(storageKey, theme);
+    } catch {
+      // Ignore: the theme still applies for this session.
+    }
     const themeColor = document.querySelector('meta[name="theme-color"]');
     if (themeColor) themeColor.setAttribute("content", theme === "dark" ? "#0c0c0c" : "#f6f8f7");
   }, [theme]);
