@@ -78,6 +78,8 @@ export interface SponsorLead {
 
 export interface ResearchJob {
   id: string;
+  /** Short Nano ID–style ID used in URLs. Missing until the public_id migration is applied. */
+  public_id?: string;
   owner_id: string;
   event_id: string | null;
 
@@ -135,24 +137,6 @@ export interface CreateResearchJobInput {
   additional_notes?: string;
 
   event_id?: string;
-}
-
-export interface SponsorProspectTemplate {
-  id: string;
-  companyName: string;
-  industry: string;
-  location: string;
-  verificationStatus: VerificationStatus;
-  sourceUrl?: string;
-  sourceLabel: string;
-  fitReason: string;
-  tags: string[];
-  contact: { name: string; role: string; email?: string; phone?: string } | null;
-}
-
-export interface DiscoveryFilterOption {
-  value: string;
-  label: string;
 }
 
 export interface FeatureRoute {

@@ -1,8 +1,15 @@
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { useAuth } from "@/auth/AuthProvider";
-import { AuthLayout } from "@/components/AuthLayout";
+import { AuthBrand, AuthLayout } from "@/components/AuthLayout";
+import { LoadingState } from "@/components/LoadingState";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 
 export function UpdatePasswordPage() {
   const { configured, isLoading, session, updatePassword } = useAuth();
@@ -13,7 +20,7 @@ export function UpdatePasswordPage() {
   const [complete, setComplete] = useState(false);
 
   if (!configured) return <Navigate to="/auth" replace />;
-  if (isLoading) return <div className="app-loading">Verifying your reset link…</div>;
+  if (isLoading) return <LoadingState fullScreen label="Verifying your reset link…" />;
   if (!session) return <Navigate to="/auth" replace />;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -34,32 +41,44 @@ export function UpdatePasswordPage() {
 
   return (
     <AuthLayout visual={<>A fresh password.<br />The same focused workspace.</>}>
-      <section className="auth-card">
-        <div className="auth-brand">
-          <span className="brand-mark">EC</span>
-          <span>Event Chief AI</span>
-        </div>
-        <div className="auth-copy">
-          <h1>{complete ? "Password updated" : "Set a new password"}</h1>
-          <p>{complete ? "Your account is secured. Continue to your workspace." : "Use a strong password you do not use elsewhere."}</p>
-        </div>
-        {complete ? (
-          <a className="button auth-submit" href="/">Continue to workspace</a>
-        ) : (
-          <form className="auth-form" onSubmit={submit}>
-            <label>
-              <span>New password</span>
-              <input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} />
-            </label>
-            <label>
-              <span>Confirm password</span>
-              <input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required minLength={8} />
-            </label>
-            {error ? <p className="auth-message error" role="alert">{error}</p> : null}
-            <button className="button auth-submit" disabled={pending}>{pending ? "Updating…" : "Update password"}</button>
-          </form>
-        )}
-      </section>
+      <Card className="w-full max-w-md">
+        <CardHeader className="gap-4">
+          <AuthBrand />
+          <div className="space-y-1">
+            <CardTitle className="text-2xl">{complete ? "Password updated" : "Set a new password"}</CardTitle>
+            <CardDescription>{complete ? "Your account is secured. Continue to your workspace." : "Use a strong password you do not use elsewhere."}</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {complete ? (
+            <Button asChild className="w-full">
+              <Link to="/">Continue to workspace</Link>
+            </Button>
+          ) : (
+            <form onSubmit={submit}>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="new-password">New password</FieldLabel>
+                  <Input id="new-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="confirm-password">Confirm password</FieldLabel>
+                  <Input id="confirm-password" type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required minLength={8} />
+                </Field>
+                {error ? (
+                  <Alert variant="destructive" className="border-destructive/30 bg-destructive-soft">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                ) : null}
+                <Button type="submit" className="w-full" disabled={pending}>
+                  {pending ? <Spinner /> : null}
+                  {pending ? "Updating…" : "Update password"}
+                </Button>
+              </FieldGroup>
+            </form>
+          )}
+        </CardContent>
+      </Card>
     </AuthLayout>
   );
 }

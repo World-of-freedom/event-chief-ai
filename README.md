@@ -4,27 +4,44 @@ This repository is a modular, production-oriented boilerplate for the Event Chie
 
 ## Current state
 
-- `GET /health` is available and reports `mode: boilerplate`.
-- Supabase email/password authentication is implemented in the React shell. Every workspace route redirects to `/auth` until a session is present.
-- `/api/v1` declares feature routes as safe `501 Not Implemented` extension points.
-- The React UI includes every planned sponsorship screen as a template route.
-- Sponsor Discovery is intentionally local-fixture-only. It performs no web crawling, enrichment, contact generation, ranking, outreach, or persistence.
-- `backend/alembic/versions/20261020_01_initial_sponsorship_schema.py` is the first reviewed schema revision. API startup never runs it.
-- The initial schema defines event, sponsorship, outreach, call, offer, task, and webhook-audit tables; foreign keys to `auth.users`; indexes; timestamp triggers; and row-level security policies.
+- Supabase email/password authentication; every workspace route redirects to `/auth` until signed in.
+- **Working end to end** (owner-scoped API + UI): events, resource needs, event dashboard, sponsor pipeline
+  (prospects, opportunities, status history), offers and follow-up tasks.
+- **Sponsor discovery** runs the AI research engine (Tavily, Google Places, Hunter, LLM). A run can be linked to a
+  saved event, and any lead can be added to an event's pipeline ("Add to pipeline").
+- **Not built yet (needs business decisions first):** email drafting/approval/sending (Resend) and calls (Bolna).
+  Their routes still return `501 Not Implemented`.
+
+### Rules the code enforces
+
+- **Data access:** SQLAlchemy sessions everywhere (`app.core.database`); supabase-py is only used to verify tokens.
+- **Ownership:** every endpoint is scoped to the signed-in user; another user's IDs return `404`.
+- **Pipeline statuses:** `backend/app/services/pipeline.py` implements the plan's transition map exactly, plus one
+  addition: `opted_out` is reachable from every active status. Every change is written to `opportunity_status_history`.
+- **Opt-out:** marking a prospect opted out closes all its opportunities as `opted_out` and cannot be undone via the API.
+- **Offers:** always created as `proposed`; `proposed → under_review → accepted | rejected`, `accepted → fulfilled`.
+  Accepting requires an evidence note, an evidence URL or explicit verification. Settled offers' terms are locked.
+- **Dashboard:** only `accepted`/`fulfilled` offers count as secured; cash and in-kind are separate; unknown amounts
+  and non-INR amounts are counted, never summed.
+- **AI leads:** imported prospects start `unverified`, including Hunter-found emails, until the organizer reviews them.
 
 ## Layout
 
 ```text
-frontend/                  # Vite + React + TypeScript UI shell
-  src/lib/discovery-fixtures.ts  # discovery template data; replace with reviewed API client
-  src/pages/               # route-level templates
-  src/components/          # reusable presentational components
+docs/
+  IMPLEMENTATION_PLAN.md   # MVP plan (with the 2026-10-24 decisions folded in)
+  2026-10-24-kundan-prasad-session-changes.md  # changes from the 2026-10-24 session
+frontend/                  # Vite + React + TypeScript, shadcn/ui (added via the shadcn CLI)
+  src/components/ui/       # shadcn components (CLI-generated)
+  src/features/            # feature dialogs/forms (events, needs, pipeline, tasks)
+  src/pages/               # route-level pages
+  src/lib/api/             # typed API clients
 backend/
-  app/api/routes/          # HTTP route shapes; all feature handlers are stubs
-  app/models/              # SQLAlchemy schema contract for Alembic autogeneration
-  app/schemas/             # modular Pydantic DTOs
-  app/repositories/        # persistence protocols and fail-closed stub
-  app/services/            # workflow/provider contracts and TODOs
+  app/api/routes/          # owner-scoped HTTP routes (email/call/webhook routes are still 501 stubs)
+  app/models/              # SQLAlchemy models (Alembic source of truth)
+  app/schemas/             # Pydantic request/response models with validation
+  app/repositories/        # owner-scoped loaders
+  app/services/            # pipeline rules, dashboard maths, lead import, research engine
   alembic/                 # committed, ordered schema revisions
   alembic.ini              # Alembic configuration
   Makefile                 # explicit database migration commands
@@ -73,7 +90,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Run tests with `pytest` from `backend/`. The API is available at `http://localhost:8000`, and `/docs` shows every extension route.
+Run tests with `pytest` from `backend/`. Tests marked `integration` use the configured database (and clean up after themselves); they are skipped automatically when no database URL is set, e.g. in CI. The API is available at `http://localhost:8000`, and `/docs` shows every extension route.
 
 ## Database schema and migrations
 
@@ -128,15 +145,13 @@ The migration enables RLS for public application tables. Browser access is limit
 
 Never edit a migration that has been applied to a shared environment. Add a new revision to correct it. `make db-downgrade` is intended for a disposable development database only; do not use it as a production rollback plan without a reviewed data-restoration strategy.
 
-## Implementation handoff order
+## Remaining work
 
-1. Implement `SponsorshipRepository` with the session dependency in `app.core.database`; keep ownership checks server-side even when RLS is enabled.
-2. Run the first Alembic revision in a disposable Supabase project and add two-user authorization/RLS tests.
-3. Replace `discovery-fixtures.ts` with an authenticated, reviewed prospect query. Document source provenance and use explainable matching only.
-4. Implement event/need services and dashboard aggregates.
-5. Add approval-gated email drafts and a Resend adapter, including a persisted idempotency strategy.
-6. Implement the Bolna adapter after validating the active provider contract in staging. Keep webhook verification, payload normalization, and de-duplication inside that adapter boundary.
-7. Implement offer/task workflows with tested status transitions, evidence policy, and audit history.
+1. Approval-gated email drafts and a Resend adapter with a persisted idempotency key (blocked on sender domain,
+   email copy and organizer identity decisions).
+2. Bolna adapter, webhook verification and call review (blocked on the agent script, consent rules and staging access).
+3. Hosting choice (Render or Railway) and production URLs.
+4. The research-job list does not return lead counts yet (cards show 0).
 
 ## Safety boundaries to preserve
 

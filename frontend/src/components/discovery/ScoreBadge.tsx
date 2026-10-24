@@ -1,77 +1,59 @@
-import React from "react";
+import { cn } from "@/lib/utils";
+
+import { StatusPill, type Tone } from "@/components/StatusPill";
+import { Progress } from "@/components/ui/progress";
+
+interface ScoreBreakdown {
+  relevance: number;
+  industryFit: number;
+  sponsorshipHistory: number;
+  geographicFit: number;
+  budgetCompatibility: number;
+  contactability: number;
+}
 
 interface ScoreBadgeProps {
   score: number;
   showBreakdown?: boolean;
-  breakdown?: {
-    relevance: number;
-    industryFit: number;
-    sponsorshipHistory: number;
-    geographicFit: number;
-    budgetCompatibility: number;
-    contactability: number;
-  };
+  breakdown?: ScoreBreakdown;
 }
 
+export function scoreTone(score: number): Tone {
+  if (score >= 75) return "success";
+  if (score >= 55) return "info";
+  if (score >= 35) return "warning";
+  return "neutral";
+}
+
+const breakdownRows: { key: keyof ScoreBreakdown; label: string; max: number }[] = [
+  { key: "relevance", label: "Relevance", max: 25 },
+  { key: "industryFit", label: "Industry fit", max: 20 },
+  { key: "sponsorshipHistory", label: "Sponsorships", max: 20 },
+  { key: "geographicFit", label: "Geography", max: 15 },
+  { key: "budgetCompatibility", label: "Budget fit", max: 10 },
+  { key: "contactability", label: "Contactability", max: 10 },
+];
+
 export function ScoreBadge({ score, showBreakdown = false, breakdown }: ScoreBadgeProps) {
-  const getColor = (s: number) => {
-    if (s >= 75) return "var(--success)";
-    if (s >= 55) return "var(--info)";
-    if (s >= 35) return "var(--warning)";
-    return "var(--muted)";
-  };
-
-  const getBg = (s: number) => {
-    if (s >= 75) return "var(--success-soft)";
-    if (s >= 55) return "var(--info-soft)";
-    if (s >= 35) return "var(--warning-soft)";
-    return "var(--surface-muted)";
-  };
-
   return (
-    <div className="flex flex-col gap-1">
-      <div
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
-        style={{
-          color: getColor(score),
-          backgroundColor: getBg(score),
-          borderColor: `color-mix(in srgb, ${getColor(score)} 30%, transparent)`,
-        }}
-        title={`Overall Match Score: ${score}/100`}
-      >
-        <span className="text-[10px] uppercase tracking-wider opacity-80">Match</span>
-        <span className="text-sm font-extrabold">{score}</span>
-        <span className="text-[11px] opacity-70">/100</span>
-      </div>
+    <div className="flex flex-col gap-4">
+      <StatusPill tone={scoreTone(score)} className="h-6 w-fit px-2.5 text-xs">
+        Match <span className="font-bold">{score}</span>/100
+      </StatusPill>
 
-      {showBreakdown && breakdown && (
-        <div className="mt-2 text-xs grid grid-cols-2 gap-x-3 gap-y-1 p-2 rounded-lg bg-[var(--surface-muted)] border border-[var(--line)]">
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Relevance:</span>
-            <span className="font-semibold text-[var(--text)]">{breakdown.relevance}/25</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Industry Fit:</span>
-            <span className="font-semibold text-[var(--text)]">{breakdown.industryFit}/20</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Sponsorships:</span>
-            <span className="font-semibold text-[var(--text)]">{breakdown.sponsorshipHistory}/20</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Geography:</span>
-            <span className="font-semibold text-[var(--text)]">{breakdown.geographicFit}/15</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Budget Fit:</span>
-            <span className="font-semibold text-[var(--text)]">{breakdown.budgetCompatibility}/10</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Contactability:</span>
-            <span className="font-semibold text-[var(--text)]">{breakdown.contactability}/10</span>
-          </div>
-        </div>
-      )}
+      {showBreakdown && breakdown ? (
+        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          {breakdownRows.map(({ key, label, max }) => (
+            <div key={key} className="space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className={cn("font-medium text-foreground")}>{breakdown[key]}/{max}</dd>
+              </div>
+              <Progress value={(breakdown[key] / max) * 100} aria-label={`${label}: ${breakdown[key]} of ${max}`} />
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </div>
   );
 }

@@ -15,8 +15,8 @@ This is a greenfield repository. The MVP deliberately excludes automated prospec
 | Frontend | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, TanStack Query, React Hook Form + Zod. |
 | Backend | FastAPI, Pydantic v2, `httpx`, and a layered route → service → repository design. |
 | Data/auth | Hosted Supabase Postgres and Supabase Auth. The browser uses only the anon key; the API verifies the bearer token and uses the service role only on the server. |
-| Database access | Use `supabase-py` consistently in repositories. The API performs explicit ownership checks even though RLS is also enabled. |
-| Matching | Deterministic, explainable scoring. Do not add embeddings or web crawling in the MVP. |
+| Database access | SQLAlchemy sessions on the Supabase Postgres database, consistently (decided 2026-10-24; supersedes `supabase-py`). supabase-py is used only for token verification. The API performs explicit ownership checks even though RLS is also enabled. |
+| Matching | AI research engine (live search + LLM extraction + explainable 100-point score), decided 2026-10-24; supersedes the manual seed catalog. Leads become pipeline prospects via "Add to pipeline" and start `unverified`. |
 | Email | Resend is called only by the backend after an organizer has approved the persisted draft. |
 | Calls | A single configured Bolna agent. A dedicated adapter owns request/response and webhook normalization. |
 | Deployment | Vercel frontend, Render or Railway backend, Supabase for auth/Postgres. |
@@ -92,7 +92,7 @@ interested → proposal_requested → proposal_sent → offer_received → accep
                                                     ↘ not_interested / opted_out
 ```
 
-`opted_out` is terminal for outreach. A status change to it also sets the prospect opt-out record; the UI and services then suppress future email/call actions.
+`opted_out` is terminal for outreach and is reachable from every non-terminal status (an opt-out is always honoured). A status change to it also sets the prospect opt-out record; the UI and services then suppress future email/call actions.
 
 Offer disposition is tracked independently: `proposed → under_review → accepted | rejected`, and `accepted → fulfilled` when the promised support has actually been delivered.
 

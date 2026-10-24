@@ -15,6 +15,7 @@ def mock_user():
     return CurrentUser(id="d2ef35aa-e1d4-4ea4-bd28-867d590527ae", email="organizer@example.com")
 
 
+@pytest.mark.integration
 def test_list_and_create_research_jobs(mock_user):
     # Override auth dependency
     app.dependency_overrides[get_current_user] = lambda: mock_user
@@ -51,6 +52,14 @@ def test_list_and_create_research_jobs(mock_user):
     job_res = client.get(f"/api/v1/research-jobs/{created_job_id}")
     assert job_res.status_code == 200
     assert job_res.json()["id"] == created_job_id
+
+    # 3b. Test lookup by the short public ID used in frontend URLs
+    public_id = data["public_id"]
+    assert len(public_id) == 10 and public_id.isalnum()
+    by_public = client.get(f"/api/v1/research-jobs/by-public-id/{public_id}")
+    assert by_public.status_code == 200
+    assert by_public.json()["id"] == created_job_id
+    assert client.get("/api/v1/research-jobs/by-public-id/zzzzzzzzzz").status_code == 404
 
     # 4. Clean up created job from DB
     session_factory = get_session_factory()

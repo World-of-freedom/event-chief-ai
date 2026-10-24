@@ -1,24 +1,29 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import {
-  ArrowLeft,
-  Download,
-  Plus,
-  RefreshCw,
-  Search,
-  Sparkles,
-} from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Download, Plus, Search, Sparkles } from "lucide-react";
 
+import { EmptyState } from "@/components/EmptyState";
+import { LoadingState } from "@/components/LoadingState";
 import { PageHeader } from "@/components/PageHeader";
+import { StatusPill, jobStatusTone } from "@/components/StatusPill";
 import { EventDetailsForm } from "@/components/discovery/EventDetailsForm";
 import { ResearchJobProgress } from "@/components/discovery/ResearchJobProgress";
 import { SponsorLeadCard } from "@/components/discovery/SponsorLeadCard";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   createResearchJob,
   getJobLeads,
   getResearchJob,
+  getResearchJobByPublicId,
   listResearchJobs,
 } from "@/lib/api/research";
+import { ApiError } from "@/lib/api/client";
 import type { CreateResearchJobInput, ResearchJob, SponsorLead } from "@/types/domain";
 
 const slugifyResearchName = (value: string) =>
@@ -28,7 +33,69 @@ const slugifyResearchName = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "research";
 
-const getResearchRoute = (job: ResearchJob) => `/discovery/${slugifyResearchName(job.event_name)}`;
+// URLs look like /discovery/<name-slug>-<public_id>; the name part is only for readability.
+const PUBLIC_ID_PATTERN = /^[0-9a-z]{10}$/;
+
+const getResearchRoute = (job: ResearchJob) => {
+  const slug = slugifyResearchName(job.event_name);
+  return `/discovery/${job.public_id ? `${slug}-${job.public_id}` : slug}`;
+};
+
+const publicIdFromRouteParam = (param: string | undefined) => {
+  const candidate = param?.split("-").pop();
+  return candidate && PUBLIC_ID_PATTERN.test(candidate) ? candidate : null;
+};
+
+/** Resolve a route param to a job: by public ID first, then by name slug (older links). */
+async function findResearchJob(param: string): Promise<ResearchJob | null> {
+  const publicId = publicIdFromRouteParam(param);
+  if (publicId) {
+    try {
+      return await getResearchJobByPublicId(publicId);
+    } catch (err) {
+      // A 404 can just mean the last slug word looked like an ID (e.g. "innovation"); fall back to the name.
+      if (!(err instanceof ApiError && err.status === 404)) throw err;
+    }
+  }
+  const jobs = await listResearchJobs();
+  return jobs.find((job) => slugifyResearchName(job.event_name) === param) ?? null;
+}
+
+const formatEventType = (value: string) => {
+  const text = value.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+function ErrorAlert({ message }: { message: string }) {
+  return (
+    <Alert variant="destructive" className="mb-6 border-destructive/30 bg-destructive-soft">
+      <AlertCircle />
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
+  );
+}
+
+function NewDiscoveryButton() {
+  return (
+    <Button asChild>
+      <Link to="/discovery/new">
+        <Plus />
+        New sponsor discovery
+      </Link>
+    </Button>
+  );
+}
+
+function BackButton({ to, label = "Back" }: { to: string; label?: string }) {
+  return (
+    <Button asChild variant="outline">
+      <Link to={to}>
+        <ArrowLeft />
+        {label}
+      </Link>
+    </Button>
+  );
+}
 
 export function SponsorDiscoveryPage() {
   return (
@@ -41,121 +108,83 @@ export function SponsorDiscoveryPage() {
 }
 
 function ResearchJobsOverviewPage() {
-  const navigate = useNavigate();
   const [jobs, setJobs] = useState<ResearchJob[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchJobs = async () => {
-    try {
-      setIsLoadingJobs(true);
-      setErrorMessage(null);
-      const data = await listResearchJobs();
-      setJobs(data);
-    } catch (err: any) {
-      console.warn("Could not load research jobs:", err);
-      setErrorMessage(err.message || "Failed to load jobs");
-    } finally {
-      setIsLoadingJobs(false);
-    }
-  };
-
   useEffect(() => {
-    void fetchJobs();
+    let active = true;
+    listResearchJobs()
+      .then((data) => {
+        if (active) setJobs(data);
+      })
+      .catch((err: unknown) => {
+        console.warn("Could not load research jobs:", err);
+        if (active) setErrorMessage(err instanceof Error ? err.message : "Failed to load research runs.");
+      })
+      .finally(() => {
+        if (active) setIsLoadingJobs(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
     <>
       <PageHeader
-        title="Sponsor Discovery"
+        title="Sponsor discovery"
         description="Autonomous LangChain research engine: finds real brand sponsors via live search, extracts verified evidence, and scores leads."
-        actions={
-          <button
-            onClick={() => navigate("/discovery/new")}
-            className="button text-xs font-semibold px-3 py-1.5 flex items-center gap-1.5 shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            New Sponsor Discovery
-          </button>
-        }
+        actions={<NewDiscoveryButton />}
       />
 
-      {errorMessage && (
-        <div className="discovery-error" role="alert">
-          {errorMessage}
-        </div>
-      )}
+      {errorMessage ? <ErrorAlert message={errorMessage} /> : null}
 
       {isLoadingJobs ? (
-        <div className="flex justify-center py-12 text-sm text-[var(--muted)]">Loading research entries…</div>
+        <LoadingState label="Loading research runs…" />
       ) : jobs.length === 0 ? (
-        <div className="empty-state border border-[var(--line)] bg-[var(--surface-raised)] rounded-2xl p-10 text-center my-6">
-          <div className="w-14 h-14 rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center mx-auto mb-4">
-            <Sparkles className="w-7 h-7" />
-          </div>
-          <h2 className="text-xl font-bold text-[var(--text)] m-0">No Sponsor Research Jobs Yet</h2>
-          <p className="text-sm text-[var(--muted)] max-w-md mx-auto mt-2 mb-6">
-            Launch a sponsor discovery workflow to gather and score the best-fit partners for your next event.
-          </p>
-          <button
-            onClick={() => navigate("/discovery/new")}
-            className="button text-sm font-bold px-5 py-2.5 inline-flex items-center gap-2 shadow"
-          >
-            <Plus className="w-4 h-4" />
-            New Sponsor Discovery
-          </button>
-        </div>
+        errorMessage ? null : (
+          <EmptyState
+            icon={<Sparkles />}
+            title="No research runs yet"
+            description="Start a sponsor discovery run to find and score the best-fit partners for your next event."
+            action={<NewDiscoveryButton />}
+          />
+        )
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {jobs.map((job) => (
-            <Link
-              key={job.id}
-              to={getResearchRoute(job)}
-              className="group block rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-5 transition hover:-translate-y-0.5 hover:border-[var(--accent)] hover:shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
-                    {job.event_type}
-                  </p>
-                  <h3 className="mt-2 text-xl font-bold text-[var(--text)] m-0">{job.event_name}</h3>
-                </div>
-                <span
-                  className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                    job.status === "completed"
-                      ? "bg-[var(--success-soft)] text-[var(--success)]"
-                      : job.status === "failed"
-                        ? "bg-[var(--danger-soft)] text-[var(--danger)]"
-                        : "bg-[var(--info-soft)] text-[var(--info)]"
-                  }`}
-                >
-                  {job.status}
-                </span>
-              </div>
-
-              <div className="mt-4 space-y-2 text-sm text-[var(--muted-strong)]">
-                <div className="flex items-center justify-between gap-3">
-                  <span>Location</span>
-                  <span className="font-semibold text-[var(--text)]">{job.venue_city}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span>Created</span>
-                  <span className="font-semibold text-[var(--text)]">{new Date(job.created_at).toLocaleDateString()}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span>Leads</span>
-                  <span className="font-semibold text-[var(--text)]">{job.leads?.length ?? 0}</span>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3 text-xs text-[var(--muted)]">
-                {job.progress_message || "Research run recorded."}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between text-xs font-medium text-[var(--accent)]">
-                <span>Open research</span>
-                <span className="group-hover:translate-x-0.5 transition-transform">→</span>
-              </div>
+            <Link key={job.id} to={getResearchRoute(job)} className="group rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+              <Card className="h-full transition-shadow group-hover:shadow-md group-hover:ring-primary/40">
+                <CardHeader>
+                  <CardDescription className="text-[11px] font-medium tracking-wide uppercase">{formatEventType(job.event_type)}</CardDescription>
+                  <CardTitle className="text-lg leading-tight">{job.event_name}</CardTitle>
+                  <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
+                    <StatusPill tone={jobStatusTone(job.status)} className="capitalize">{job.status}</StatusPill>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex flex-1 flex-col gap-3">
+                  <dl className="space-y-1.5 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Location</dt>
+                      <dd className="font-medium">{job.venue_city}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Created</dt>
+                      <dd className="font-medium">{new Date(job.created_at).toLocaleDateString()}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Leads</dt>
+                      <dd className="font-medium">{job.leads?.length ?? 0}</dd>
+                    </div>
+                  </dl>
+                  <p className="rounded-lg bg-muted p-2.5 text-xs text-muted-foreground">{job.progress_message || "Research run recorded."}</p>
+                </CardContent>
+                <CardFooter className="justify-between text-xs font-medium text-primary">
+                  Open research
+                  <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                </CardFooter>
+              </Card>
             </Link>
           ))}
         </div>
@@ -166,8 +195,6 @@ function ResearchJobsOverviewPage() {
 
 function ResearchDetailPage() {
   const { researchName } = useParams<{ researchName: string }>();
-  const navigate = useNavigate();
-  const [jobs, setJobs] = useState<ResearchJob[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<ResearchJob | null>(null);
   const [leads, setLeads] = useState<SponsorLead[]>([]);
@@ -185,11 +212,11 @@ function ResearchDetailPage() {
     try {
       setIsLoadingJobs(true);
       setErrorMessage(null);
-      const data = await listResearchJobs();
-      setJobs(data);
-      const matched = data.find((job) => slugifyResearchName(job.event_name) === researchName);
-      if (matched) {
-        setSelectedJobId(matched.id);
+      const matched = researchName ? await findResearchJob(researchName) : null;
+      setSelectedJobId(matched?.id ?? null);
+      if (!matched) {
+        setActiveJob(null);
+        setLeads([]);
       }
     } catch (err: any) {
       console.warn("Could not load research jobs:", err);
@@ -207,6 +234,7 @@ function ResearchDetailPage() {
       setLeads(jobWithLeads.leads || []);
     } catch (err: any) {
       console.error("Failed to fetch job leads:", err);
+      setErrorMessage(err?.message || "Failed to load the leads for this research run.");
     } finally {
       setIsLoadingLeads(false);
     }
@@ -253,7 +281,11 @@ function ResearchDetailPage() {
         selectedIndustry === "all" ||
         (lead.industry && lead.industry.toLowerCase() === selectedIndustry.toLowerCase());
 
-      const matchesConfidence = confidenceFilter === "all" || lead.confidence === confidenceFilter;
+      const matchesConfidence =
+        confidenceFilter === "all" ||
+        (confidenceFilter === "medium"
+          ? lead.confidence === "medium" || lead.confidence === "high"
+          : lead.confidence === confidenceFilter);
       const matchesScore = lead.score_total >= minScoreFilter;
       const matchesEmail = !hasEmailOnly || Boolean(lead.contact_email);
 
@@ -297,203 +329,160 @@ function ResearchDetailPage() {
       `"${(lead.ranking_explanation || "").replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    // A Blob avoids the data-URI pitfalls (a "#" in any field used to cut the file short).
+    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `sponsor_leads_${activeJob?.event_name || "event"}.csv`);
+    link.href = url;
+    link.download = `sponsor_leads_${slugifyResearchName(activeJob?.event_name || "event")}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  if (isLoadingJobs) {
-    return <div className="flex justify-center py-12 text-sm text-[var(--muted)]">Loading research details…</div>;
+  // Also wait while the matched job's details load, so "not found" never flashes first.
+  if (isLoadingJobs || (selectedJobId && !activeJob && !errorMessage)) {
+    return <LoadingState label="Loading research run…" />;
   }
 
   if (!activeJob && !isLoadingLeads && !errorMessage) {
     return (
-      <div className="max-w-xl mx-auto my-12 p-8 border border-[var(--line)] bg-[var(--surface-raised)] rounded-2xl text-center">
-        <Sparkles className="w-12 h-12 text-[var(--muted)] mx-auto mb-3" />
-        <h2 className="text-xl font-bold text-[var(--text)] m-0">Research Run Not Found</h2>
-        <p className="text-sm text-[var(--muted)] mt-2 mb-6">
-          The research entry you requested could not be found.
-        </p>
-        <Link to="/discovery" className="button inline-flex items-center gap-2 text-xs">
-          <ArrowLeft className="w-4 h-4" /> Back to Sponsor Discovery
-        </Link>
-      </div>
+      <EmptyState
+        icon={<Sparkles />}
+        title="Research run not found"
+        description="The research run you requested could not be found."
+        action={<BackButton to="/discovery" label="Back to sponsor discovery" />}
+      />
     );
   }
-
-  const pageTitle = activeJob?.event_name || "Sponsor Discovery";
 
   return (
     <>
       <PageHeader
-        title={pageTitle}
+        title={activeJob?.event_name || "Sponsor discovery"}
         description={
           activeJob
             ? `Research record for ${activeJob.venue_city}. ${activeJob.progress_message || "Review the sponsor recommendations generated for this event."}`
             : "Research record"
         }
         actions={
-          <div className="flex items-center gap-2">
-            <Link to="/discovery" className="button button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back
-            </Link>
-            <button
-              onClick={() => navigate("/discovery/new")}
-              className="button text-xs font-semibold px-3 py-1.5 flex items-center gap-1.5 shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              New Sponsor Discovery
-            </button>
-          </div>
+          <>
+            <BackButton to="/discovery" />
+            <NewDiscoveryButton />
+          </>
         }
       />
 
-      {errorMessage && (
-        <div className="discovery-error" role="alert">
-          {errorMessage}
-        </div>
-      )}
+      {errorMessage ? <ErrorAlert message={errorMessage} /> : null}
 
-      {activeJob && (
-        <>
-          <div className="mb-5 rounded-2xl border border-[var(--line)] bg-[var(--surface-raised)] p-4 text-sm text-[var(--muted)]">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div>
-                <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)] font-semibold">Research summary</span>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <span><strong className="text-[var(--text)]">City:</strong> {activeJob.venue_city}</span>
-                  <span><strong className="text-[var(--text)]">Audience:</strong> {activeJob.primary_audience || "General"}</span>
-                  <span><strong className="text-[var(--text)]">Budget:</strong> {activeJob.budget_target_inr ? `₹${Number(activeJob.budget_target_inr).toLocaleString()}` : "Open"}</span>
-                </div>
+      {activeJob ? (
+        <div className="space-y-4">
+          <Card size="sm">
+            <CardContent className="space-y-2">
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Research summary</p>
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                <span><span className="font-medium text-foreground">City:</span> {activeJob.venue_city}</span>
+                <span><span className="font-medium text-foreground">Audience:</span> {activeJob.primary_audience || "General"}</span>
+                <span>
+                  <span className="font-medium text-foreground">Budget:</span>{" "}
+                  {activeJob.budget_target_inr ? `₹${Number(activeJob.budget_target_inr).toLocaleString("en-IN")}` : "Open"}
+                </span>
               </div>
-              <button
-                onClick={() => navigate("/discovery/new")}
-                className="button button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Start another run
-              </button>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           <ResearchJobProgress job={activeJob} />
-        </>
-      )}
+        </div>
+      ) : null}
 
-      {activeJob && leads.length > 0 && (
-        <section className="mt-6 flex flex-col gap-3 p-4 rounded-xl border border-[var(--line)] bg-[var(--surface-raised)]" aria-label="Discovery filters">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--muted)]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter leads by company, keyword, or city…"
-                className="w-full text-xs pl-9 pr-3 py-2 rounded-lg border border-[var(--line-strong)] bg-[var(--surface)] text-[var(--text)]"
-              />
+      {activeJob && leads.length > 0 ? (
+        <Card size="sm" className="mt-6" aria-label="Discovery filters">
+          <CardContent className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter leads by company, keyword, or city…"
+                  aria-label="Filter leads"
+                  className="pl-8"
+                />
+              </div>
+              <Button variant="outline" onClick={exportToCsv} disabled={!filteredLeads.length} title="Export filtered sponsor leads to CSV">
+                <Download />
+                Export leads ({filteredLeads.length})
+              </Button>
             </div>
 
-            <button
-              onClick={exportToCsv}
-              className="button button-secondary text-xs px-3 py-2 flex items-center gap-1.5 flex-shrink-0"
-              title="Export filtered sponsor leads to CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Export Leads ({filteredLeads.length})
-            </button>
-          </div>
+            <div className="flex flex-wrap items-center gap-3 border-t pt-3">
+              <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+                <SelectTrigger size="sm" aria-label="Industry"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All industries</SelectItem>
+                  {uniqueIndustries.map((industry) => (
+                    <SelectItem key={industry} value={industry}>{industry}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[var(--line)] text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[var(--muted)] font-medium">Industry:</span>
-              <select
-                value={selectedIndustry}
-                onChange={(e) => setSelectedIndustry(e.target.value)}
-                className="text-xs py-1 px-2 rounded border border-[var(--line)] bg-[var(--surface)] text-[var(--text)]"
-              >
-                <option value="all">All Industries</option>
-                {uniqueIndustries.map((industry) => (
-                  <option key={industry} value={industry}>{industry}</option>
-                ))}
-              </select>
+              <Select value={confidenceFilter} onValueChange={setConfidenceFilter}>
+                <SelectTrigger size="sm" aria-label="Confidence"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any confidence</SelectItem>
+                  <SelectItem value="high">High only</SelectItem>
+                  <SelectItem value="medium">Medium &amp; high</SelectItem>
+                  <SelectItem value="low">Low only</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={String(minScoreFilter)} onValueChange={(value) => setMinScoreFilter(parseInt(value, 10))}>
+                <SelectTrigger size="sm" aria-label="Minimum score"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Any score</SelectItem>
+                  <SelectItem value="40">40+ points</SelectItem>
+                  <SelectItem value="60">60+ points</SelectItem>
+                  <SelectItem value="75">75+ points</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <Checkbox id="has-email-only" checked={hasEmailOnly} onCheckedChange={(checked) => setHasEmailOnly(checked === true)} />
+                <Label htmlFor="has-email-only" className="font-normal">Has email only</Label>
+              </div>
             </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-[var(--muted)] font-medium">Confidence:</span>
-              <select
-                value={confidenceFilter}
-                onChange={(e) => setConfidenceFilter(e.target.value)}
-                className="text-xs py-1 px-2 rounded border border-[var(--line)] bg-[var(--surface)] text-[var(--text)]"
-              >
-                <option value="all">All Confidences</option>
-                <option value="high">High Confidence Only</option>
-                <option value="medium">Medium +</option>
-                <option value="low">Low</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[var(--muted)] font-medium">Min Score:</span>
-              <select
-                value={minScoreFilter}
-                onChange={(e) => setMinScoreFilter(parseInt(e.target.value, 10))}
-                className="text-xs py-1 px-2 rounded border border-[var(--line)] bg-[var(--surface)] text-[var(--text)]"
-              >
-                <option value={0}>Any Score</option>
-                <option value={40}>40+ Points</option>
-                <option value={60}>60+ Points</option>
-                <option value={75}>75+ Points</option>
-              </select>
-            </div>
-
-            <label className="flex items-center gap-1.5 cursor-pointer ml-auto text-[var(--muted-strong)] font-medium">
-              <input
-                type="checkbox"
-                checked={hasEmailOnly}
-                onChange={(e) => setHasEmailOnly(e.target.checked)}
-                className="rounded text-[var(--accent)]"
-              />
-              Has Verified Email Only
-            </label>
-          </div>
-        </section>
-      )}
-
-      {activeJob && (
+      {activeJob ? (
         <section aria-label="Ranked sponsor leads" className="mt-6 flex flex-col gap-4">
-          <div className="flex items-center justify-between text-xs text-[var(--muted)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>
-              Showing <strong className="text-[var(--text)]">{filteredLeads.length}</strong> ranked sponsor candidates
-              {filteredLeads.length !== leads.length && ` (filtered from ${leads.length})`}
+              Showing <span className="font-semibold text-foreground">{filteredLeads.length}</span> ranked sponsor candidates
+              {filteredLeads.length !== leads.length ? ` (filtered from ${leads.length})` : null}
             </span>
             <span>Sorted by composite match score (100 pts)</span>
           </div>
 
           {filteredLeads.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredLeads.map((lead) => (
-                <SponsorLeadCard key={lead.id} lead={lead} />
+                <SponsorLeadCard key={lead.id} lead={lead} eventId={activeJob.event_id} />
               ))}
             </div>
-          ) : (
-            activeJob.status === "completed" && (
-              <div className="p-8 text-center border border-[var(--line)] bg-[var(--surface-raised)] rounded-xl">
-                <p className="text-sm text-[var(--muted)] m-0">
-                  No leads matched the current filter criteria. Try adjusting or clearing your filters.
-                </p>
-              </div>
-            )
-          )}
+          ) : activeJob.status === "completed" ? (
+            <EmptyState
+              icon={<Search />}
+              title="No matching leads"
+              description={leads.length ? "No leads match the current filters. Try adjusting or clearing them." : "This research run finished without any sponsor leads."}
+            />
+          ) : null}
         </section>
-      )}
+      ) : null}
     </>
   );
 }
@@ -550,34 +539,17 @@ function NewResearchPage() {
   return (
     <>
       <PageHeader
-        title="New Sponsor Discovery"
+        title="New sponsor discovery"
         description="Define your event and launch a live sponsor research run."
-        actions={
-          <Link to="/discovery" className="button button-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to list
-          </Link>
-        }
+        actions={<BackButton to="/discovery" />}
       />
 
-      {errorMessage && (
-        <div className="discovery-error" role="alert">
-          {errorMessage}
-        </div>
-      )}
+      {errorMessage ? <ErrorAlert message={errorMessage} /> : null}
 
       {currentJob ? (
-        <div className="mt-6">
-          <ResearchJobProgress job={currentJob} />
-        </div>
+        <ResearchJobProgress job={currentJob} />
       ) : (
-        <div className="mt-6">
-          <EventDetailsForm
-            onSubmit={handleCreateJob}
-            onCancel={() => navigate("/discovery")}
-            isSubmitting={isSubmitting}
-          />
-        </div>
+        <EventDetailsForm onSubmit={handleCreateJob} onCancel={() => navigate("/discovery")} isSubmitting={isSubmitting} />
       )}
     </>
   );

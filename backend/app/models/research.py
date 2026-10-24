@@ -24,6 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.ids import PUBLIC_ID_LENGTH, generate_public_id
 from app.models.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import (
     EvidenceType,
@@ -38,6 +39,14 @@ class ResearchJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """Tracks a single sponsor-discovery research run for an event."""
 
     __tablename__ = "research_jobs"
+
+    # Short ID used in frontend URLs (e.g. /discovery/codestorm-2026-x8k2m9q4ab)
+    public_id: Mapped[str] = mapped_column(
+        String(PUBLIC_ID_LENGTH),
+        nullable=False,
+        unique=True,
+        default=generate_public_id,
+    )
 
     # Owner and event linkage (event_id is optional — jobs can be run without a saved event)
     owner_id: Mapped[UUID] = mapped_column(
