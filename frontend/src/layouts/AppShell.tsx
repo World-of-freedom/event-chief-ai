@@ -6,13 +6,13 @@ import {
   Compass,
   LayoutDashboard,
   LogOut,
+  ShieldCheck,
   Ticket,
   Users,
-  Wallet,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/auth/AuthProvider";
@@ -55,14 +55,15 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { appRoutes, comingSoonRoutes, routeLabelForPath } from "@/lib/routes";
+import { getAdminMe } from "@/lib/api/sponsorship";
 
 const routeIcons: Record<string, LucideIcon> = {
   "/": LayoutDashboard,
   "/events": CalendarDays,
-  "/needs": Wallet,
   "/discovery": Compass,
   "/pipeline": Workflow,
   "/follow-ups": ClipboardCheck,
+  "/admin": ShieldCheck,
   "/coming-soon/speakers": Users,
   "/coming-soon/vendors": Users,
   "/coming-soon/ticketing": Ticket,
@@ -89,6 +90,8 @@ function AppSidebar() {
   const location = useLocation();
   const { setOpenMobile } = useSidebar();
   const queryClient = useQueryClient();
+  const adminQuery = useQuery({ queryKey: ["admin", "me"], queryFn: getAdminMe, retry: false });
+  const visibleRoutes = adminQuery.data?.is_platform_admin ? [...appRoutes, { label: "User management", to: "/admin" }] : appRoutes;
 
   // Close the mobile drawer after navigating.
   useEffect(() => {
@@ -131,7 +134,7 @@ function AppSidebar() {
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {appRoutes.map((item) => {
+              {visibleRoutes.map((item) => {
                 const Icon = routeIcons[item.to] ?? LayoutDashboard;
                 const isActive = item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
                 return (

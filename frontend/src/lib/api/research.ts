@@ -1,6 +1,7 @@
 import { apiClient } from "@/lib/api/client";
 import type {
   CreateResearchJobInput,
+  LeadContact,
   ResearchJob,
   SponsorLead,
 } from "@/types/domain";
@@ -32,4 +33,15 @@ export async function getJobLeads(jobId: string): Promise<ResearchJob> {
 
 export async function getLeadDetails(leadId: string): Promise<SponsorLead> {
   return apiClient<SponsorLead>(`/leads/${leadId}`);
+}
+
+export async function retryResearchJob(jobId: string): Promise<ResearchJob> {
+  return apiClient<ResearchJob>(`/research-jobs/${jobId}/retry`, { method: "POST", body: "{}" });
+}
+
+export async function verifySelectedLeadEmails(leadId: string, contactIds: string[]): Promise<{ contacts: LeadContact[]; credits_used: number }> {
+  return apiClient<{ contacts: LeadContact[]; credits_used: number }>(`/leads/${leadId}/contacts/verify`, {
+    method: "POST",
+    body: JSON.stringify({ contact_ids: contactIds }),
+  });
 }

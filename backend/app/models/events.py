@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, CheckConstraint, Date, ForeignKey, Integer, Numeric, String, Text, Uuid
+from sqlalchemy import Boolean, CheckConstraint, Date, ForeignKey, Integer, JSON, Numeric, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -13,6 +13,8 @@ from app.models.enums import Priority, ResourceCategory, ResourceNeedStatus, db_
 
 if TYPE_CHECKING:
     from app.models.prospects import Opportunity
+    from app.models.research import ResearchJob
+    from app.models.outreach import FollowUpTask
 
 
 class Event(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -35,8 +37,15 @@ class Event(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     website_url: Mapped[str | None] = mapped_column(Text)
     organizer_name: Mapped[str | None] = mapped_column(String(160))
     organizer_email: Mapped[str | None] = mapped_column(String(320))
+    organizer_phone: Mapped[str | None] = mapped_column(String(32))
+    # A child is a full event record.  Keeping the direct parent makes the
+    # hierarchy arbitrary-depth while preserving all event capabilities.
+    parent_event_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    is_subevent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     resource_needs: Mapped[list[ResourceNeed]] = relationship(back_populates="event", cascade="all, delete-orphan")
+    parent_event: Mapped[Event | None] = relationship(back_populates="child_events", remote_side="Event.id")
+    child_events: Mapped[list[Event]] = relationship(back_populates="parent_event", cascade="all, delete-orphan")
     opportunities: Mapped[list[Opportunity]] = relationship(back_populates="event", cascade="all, delete-orphan")
 
 
@@ -51,6 +60,7 @@ class ResourceNeed(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     category: Mapped[ResourceCategory] = mapped_column(db_enum(ResourceCategory, "resource_category"), nullable=False)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
     target_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="INR", server_default="INR")
     target_quantity: Mapped[int | None] = mapped_column(Integer)

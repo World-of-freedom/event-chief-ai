@@ -30,7 +30,17 @@ class SearchQuery(BaseModel):
     )
 
 
+class EventAnalysis(BaseModel):
+    """Call-one output: a normalized, reviewable search brief."""
+
+    sponsor_categories: list[str] = Field(default_factory=list)
+    contribution_types: list[str] = Field(default_factory=list)
+    eligibility_constraints: list[str] = Field(default_factory=list)
+    local_business_queries: list[str] = Field(default_factory=list)
+
+
 class SearchPlan(BaseModel):
+    analysis: EventAnalysis = Field(default_factory=EventAnalysis)
     queries: list[SearchQuery] = Field(default_factory=list)
 
 
@@ -47,7 +57,7 @@ CRITICAL RULES:
    - contact_discovery: Queries to locate official sponsor/partnership pages and contact details
 3. Do NOT hallucinate fabricated company names or pretend companies exist.
 4. Always generate between 6 and 10 queries total.
-5. Return JSON with the key "queries".
+5. Return JSON with "analysis" and "queries". The analysis must identify sponsor categories, contribution types, eligibility constraints, and (only when location matters) local-business query themes.
 """
 
 PLANNER_HUMAN_PROMPT = """Plan sponsorship search queries for this event:
@@ -61,17 +71,38 @@ PLANNER_HUMAN_PROMPT = """Plan sponsorship search queries for this event:
 - Support Needed: {support_types}
 - Institution: {institution_name}
 - Previous Sponsors Hint: {previous_sponsors_hint}
+- Eligibility / partner constraints: {eligibility_constraints}
 - Notes: {additional_notes}
 
-Generate targeted search queries to discover live sponsor candidates. Output JSON with "queries": [{{"query": "...", "category": "..."}}]."""
+Generate targeted search queries to discover live sponsor candidates. Output JSON with "analysis" and "queries": [{{"query": "...", "category": "..."}}]."""
 
 
-async def generate_search_queries(
+def _fallback_analysis(event_details: dict[str, Any]) -> EventAnalysis:
+    support = event_details.get("support_types_needed") or ["cash", "in-kind"]
+    event_type = event_details.get("event_type") or "event"
+    audience = event_details.get("primary_audience") or "attendees"
+    return EventAnalysis(
+        sponsor_categories=[f"brands relevant to {event_type}", "companies with community or partnership programs"],
+        contribution_types=[str(value) for value in support],
+        eligibility_constraints=[f"audience: {audience}"],
+        local_business_queries=["relevant local businesses", "coworking spaces and community venues"],
+    )
+
+
+def get_fallback_search_plan(event_details: dict[str, Any], n_queries: int = 8) -> SearchPlan:
+    """Deterministic equivalent of Call 1 when the LLM is unavailable."""
+    return SearchPlan(
+        analysis=_fallback_analysis(event_details),
+        queries=get_fallback_queries(event_details, n_queries=n_queries),
+    )
+
+
+async def generate_search_plan(
     llm: BaseChatModel,
     event_details: dict[str, Any],
     n_queries: int = 8,
-) -> list[SearchQuery]:
-    """Generate targeted search queries using LLM with fallback support."""
+) -> SearchPlan:
+    """Generate the persisted Call-1 event analysis and targeted queries."""
     prompt = ChatPromptTemplate.from_messages([
         ("system", PLANNER_SYSTEM_PROMPT),
         ("human", PLANNER_HUMAN_PROMPT),
@@ -91,6 +122,7 @@ async def generate_search_queries(
             "support_types": ", ".join(event_details.get("support_types_needed") or ["cash", "in-kind"]),
             "institution_name": event_details.get("institution_name") or "college/university",
             "previous_sponsors_hint": event_details.get("previous_sponsors_hint") or "None specified",
+            "eligibility_constraints": event_details.get("eligibility_constraints") or "None specified",
             "additional_notes": event_details.get("additional_notes") or "",
         })
 
@@ -106,12 +138,30 @@ async def generate_search_queries(
                 )
 
         if parsed:
-            return parsed[:n_queries]
+            raw_analysis = result.get("analysis", {}) if isinstance(result, dict) else {}
+            return SearchPlan(
+                analysis=EventAnalysis(
+                    sponsor_categories=[str(item)[:160] for item in raw_analysis.get("sponsor_categories", [])[:8]],
+                    contribution_types=[str(item)[:120] for item in raw_analysis.get("contribution_types", [])[:8]],
+                    eligibility_constraints=[str(item)[:240] for item in raw_analysis.get("eligibility_constraints", [])[:8]],
+                    local_business_queries=[str(item)[:160] for item in raw_analysis.get("local_business_queries", [])[:3]],
+                ),
+                queries=parsed[:n_queries],
+            )
 
     except Exception as exc:
         logger.warning("LLM search query generation failed: %s. Using default search queries.", exc)
 
-    return get_fallback_queries(event_details, n_queries=n_queries)
+    return get_fallback_search_plan(event_details, n_queries=n_queries)
+
+
+async def generate_search_queries(
+    llm: BaseChatModel,
+    event_details: dict[str, Any],
+    n_queries: int = 8,
+) -> list[SearchQuery]:
+    """Compatibility wrapper for callers that only need the query list."""
+    return (await generate_search_plan(llm, event_details, n_queries)).queries
 
 
 def get_fallback_queries(event_details: dict[str, Any], n_queries: int = 8) -> list[SearchQuery]:

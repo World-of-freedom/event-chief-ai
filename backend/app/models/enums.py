@@ -6,6 +6,11 @@ from sqlalchemy import Enum as SqlEnum
 class ResourceCategory(str, Enum):
     CASH = "cash"
     CLOUD_CREDITS = "cloud_credits"
+    EQUIPMENT = "equipment"
+    SPEAKERS = "speakers"
+    MENTORS = "mentors"
+    VENUE = "venue"
+    VOLUNTEERS = "volunteers"
     PRIZES = "prizes"
     FOOD = "food"
     MERCHANDISE = "merchandise"

@@ -49,6 +49,7 @@ class Settings(DatabaseSettings):
     bolna_webhook_secret: str | None = Field(default=None, alias="BOLNA_WEBHOOK_SECRET")
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
     app_env: str = Field(default="development", alias="APP_ENV")
+    platform_admin_emails: str = Field(default="", alias="PLATFORM_ADMIN_EMAILS")
 
     # ── Sponsor Discovery ────────────────────────────────────────────────────
     # LLM provider — set LLM_PROVIDER to switch between gemini / openai / anthropic
@@ -81,6 +82,8 @@ class Settings(DatabaseSettings):
     research_max_searches: int = Field(default=8, alias="RESEARCH_MAX_SEARCHES")
     research_max_candidates: int = Field(default=30, alias="RESEARCH_MAX_CANDIDATES")
     research_max_verified: int = Field(default=15, alias="RESEARCH_MAX_VERIFIED")
+    research_max_targeted_searches: int = Field(default=12, ge=1, le=30, alias="RESEARCH_MAX_TARGETED_SEARCHES")
+    research_phone_default_region: str = Field(default="IN", min_length=2, max_length=2, alias="RESEARCH_PHONE_DEFAULT_REGION")
 
     @property
     def configured_resend(self) -> bool:
@@ -89,6 +92,11 @@ class Settings(DatabaseSettings):
     @property
     def configured_bolna(self) -> bool:
         return bool(self.bolna_api_key and self.bolna_agent_id and self.bolna_webhook_secret)
+
+    @property
+    def bootstrap_admin_emails(self) -> set[str]:
+        """Server-only allowlist used to bootstrap the first platform administrator."""
+        return {email.strip().lower() for email in self.platform_admin_emails.split(",") if email.strip()}
 
     @property
     def configured_llm(self) -> bool:

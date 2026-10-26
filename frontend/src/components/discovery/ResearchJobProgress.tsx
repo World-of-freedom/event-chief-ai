@@ -15,7 +15,7 @@ export function ResearchJobProgress({ job }: { job: ResearchJob }) {
   const metrics: { icon: LucideIcon; label: string; value: string }[] = [
     { icon: Search, label: "Tavily searches", value: `${job.tavily_credits_used} credits` },
     { icon: MapPin, label: "Google Places", value: `${job.places_api_calls} calls` },
-    { icon: Mail, label: "Hunter emails", value: `${job.hunter_credits_used} lookups` },
+    { icon: Mail, label: "Hunter selected", value: `${job.hunter_credits_used} checks` },
     { icon: Sparkles, label: "LLM extraction", value: isRunning ? "Active" : isCompleted ? "Done" : "Stopped" },
   ];
 

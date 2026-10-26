@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { getOpportunity, updateOpportunity } from "@/lib/api/sponsorship";
+import { approveEmail, createEmailDraft, getOpportunity, recordManualInteraction, sendEmail, updateOpportunity } from "@/lib/api/sponsorship";
 import {
   formatDate,
   formatDateTime,
@@ -459,22 +459,31 @@ function PlanCard({ opportunity }: { opportunity: OpportunityDetail }) {
 }
 
 function ActivityCard({ opportunity }: { opportunity: OpportunityDetail }) {
+  const queryClient = useQueryClient();
+  const [note, setNote] = useState("");
+  const [followUp, setFollowUp] = useState("");
+  const refresh = () => { void queryClient.invalidateQueries({ queryKey: ["opportunity", opportunity.id] }); void queryClient.invalidateQueries({ queryKey: ["opportunities"] }); void queryClient.invalidateQueries({ queryKey: ["tasks"] }); };
+  const draft = useMutation({ mutationFn: () => createEmailDraft(opportunity.id), onSuccess: () => { refresh(); toast.success("Email draft created. Review and approve it before sending."); }, onError: (error) => toast.error(errorMessage(error)) });
+  const approve = useMutation({ mutationFn: approveEmail, onSuccess: () => { refresh(); toast.success("Outreach approved"); }, onError: (error) => toast.error(errorMessage(error)) });
+  const send = useMutation({ mutationFn: sendEmail, onSuccess: () => { refresh(); toast.success("Email sent"); }, onError: (error) => toast.error(errorMessage(error)) });
+  const manual = useMutation({ mutationFn: () => recordManualInteraction(opportunity.id, { direction: "outbound", body: note.trim(), follow_up_title: followUp.trim() || null }), onSuccess: () => { setNote(""); setFollowUp(""); refresh(); toast.success("Manual interaction recorded"); }, onError: (error) => toast.error(errorMessage(error)) });
   const empty = opportunity.messages.length === 0 && opportunity.calls.length === 0;
   return (
     <Card>
       <CardHeader>
         <CardTitle>Emails &amp; calls</CardTitle>
-        <CardDescription>Added {formatDate(opportunity.created_at)}</CardDescription>
+        <CardDescription>Every email requires explicit approval. Added {formatDate(opportunity.created_at)}</CardDescription>
+        <CardAction><Button size="sm" variant="outline" disabled={opportunity.outreach_blocked || draft.isPending} onClick={() => draft.mutate()}>{draft.isPending ? <Spinner /> : null}Draft email</Button></CardAction>
       </CardHeader>
-      <CardContent className="text-sm">
+      <CardContent className="space-y-4 text-sm">
         {empty ? (
-          <p className="text-muted-foreground">No emails or calls yet. Sending email and calling aren't set up in this version.</p>
+          <p className="text-muted-foreground">No interactions yet. Draft an email or log a human conversation.</p>
         ) : (
           <ul className="divide-y">
             {opportunity.messages.map((message) => (
               <li key={message.id} className="flex justify-between gap-3 py-2">
                 <span className="truncate">{message.subject || message.message_type}</span>
-                <span className="shrink-0 text-muted-foreground">{message.status}</span>
+                <span className="flex shrink-0 items-center gap-2"><span className="text-muted-foreground">{message.status}</span>{message.status === "draft" ? <Button size="xs" disabled={approve.isPending} onClick={() => approve.mutate(message.id)}>Approve</Button> : null}{message.status === "approved" ? <Button size="xs" disabled={send.isPending} onClick={() => send.mutate(message.id)}>Send</Button> : null}</span>
               </li>
             ))}
             {opportunity.calls.map((call) => (
@@ -485,6 +494,12 @@ function ActivityCard({ opportunity }: { opportunity: OpportunityDetail }) {
             ))}
           </ul>
         )}
+        <div className="space-y-2 border-t pt-4">
+          <p className="font-medium">Log a manual interaction</p>
+          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} placeholder="What happened when you contacted this sponsor?" />
+          <Input value={followUp} onChange={(event) => setFollowUp(event.target.value)} placeholder="Optional follow-up task" />
+          <Button size="sm" variant="outline" disabled={!note.trim() || manual.isPending || opportunity.outreach_blocked} onClick={() => manual.mutate()}>{manual.isPending ? <Spinner /> : null}Save interaction</Button>
+        </div>
       </CardContent>
     </Card>
   );

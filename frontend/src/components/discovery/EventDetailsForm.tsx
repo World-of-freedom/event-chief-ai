@@ -1,4 +1,4 @@
-import { useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { IndianRupee, Layers, MapPin, Sparkles, Users } from "lucide-react";
@@ -22,6 +22,7 @@ interface EventDetailsFormProps {
   onSubmit: (input: CreateResearchJobInput) => Promise<void>;
   onCancel?: () => void;
   isSubmitting?: boolean;
+  initialEventId?: string | null;
 }
 
 type FormTab = "overview" | "audience" | "sponsorship";
@@ -36,6 +37,11 @@ const formatOptions = [
 const supportTypeOptions = [
   { value: "cash", label: "Cash grant" },
   { value: "cloud_credits", label: "Cloud credits / API grants" },
+  { value: "equipment", label: "Equipment" },
+  { value: "speakers", label: "Speakers" },
+  { value: "mentors", label: "Mentors" },
+  { value: "venue", label: "Venue" },
+  { value: "volunteers", label: "Volunteers" },
   { value: "prizes", label: "Prizes & hardware" },
   { value: "food", label: "Food & beverage" },
   { value: "merchandise", label: "T-shirts & swag" },
@@ -56,6 +62,7 @@ export function EventDetailsForm({
   onSubmit,
   onCancel,
   isSubmitting = false,
+  initialEventId = null,
 }: EventDetailsFormProps) {
   const [formData, setFormData] = useState<CreateResearchJobInput>({
     event_name: "",
@@ -77,6 +84,7 @@ export function EventDetailsForm({
     support_types_needed: ["cash", "cloud_credits"],
     sponsorship_tiers: "",
     sponsor_benefits: "",
+    eligibility_constraints: "",
     previous_sponsors_hint: "",
     additional_notes: "",
   });
@@ -110,6 +118,12 @@ export function EventDetailsForm({
       event_description: event.description || formData.event_description,
     });
   };
+
+  useEffect(() => {
+    if (!formData.event_id && initialEventId && savedEvents.some((event) => event.id === initialEventId)) linkEvent(initialEventId);
+  // Initial query parameters are only a convenience for the event details page.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEventId, savedEvents]);
 
   const loadExamplePreset = (type: "hackathon" | "fest" | "summit") => {
     if (type === "hackathon") {
@@ -411,6 +425,12 @@ export function EventDetailsForm({
                 <Field className="sm:col-span-2">
                   <FieldLabel htmlFor="edf-sponsor-benefits">Benefits offered to sponsors</FieldLabel>
                   <Textarea id="edf-sponsor-benefits" rows={3} placeholder="e.g. Keynote speech, booth space, resume database, logo on badges" value={formData.sponsor_benefits || ""} onChange={(e) => update({ sponsor_benefits: e.target.value })} />
+                </Field>
+
+                <Field className="sm:col-span-2">
+                  <FieldLabel htmlFor="edf-eligibility-constraints">Eligibility or partner constraints</FieldLabel>
+                  <Textarea id="edf-eligibility-constraints" rows={2} maxLength={2000} placeholder="e.g. Must support Indian student events, avoid competing beverage brands, require an invoice." value={formData.eligibility_constraints || ""} onChange={(e) => update({ eligibility_constraints: e.target.value })} />
+                  <FieldDescription>These constraints guide research and are retained with the event brief.</FieldDescription>
                 </Field>
 
                 <Field className="sm:col-span-2">

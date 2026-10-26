@@ -2,11 +2,10 @@ import type { FeatureRoute } from "@/types/domain";
 
 export const appRoutes: FeatureRoute[] = [
   { label: "Dashboard", to: "/" },
-  { label: "Event setup", to: "/events" },
-  { label: "Resource needs", to: "/needs" },
+  { label: "Events", to: "/events" },
   { label: "Sponsor discovery", to: "/discovery" },
   { label: "Pipeline", to: "/pipeline" },
-  { label: "Follow-ups", to: "/follow-ups" },
+  { label: "Tasks & follow-ups", to: "/follow-ups" },
 ];
 
 export const comingSoonRoutes: FeatureRoute[] = [
@@ -17,6 +16,7 @@ export const comingSoonRoutes: FeatureRoute[] = [
 
 const extraLabels: Record<string, string> = {
   "/auth": "Sign in",
+  "/admin": "User management",
 };
 
 export function routeLabelForPath(pathname: string) {

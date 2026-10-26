@@ -11,7 +11,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Event Chief AI API",
         version="0.1.0",
-        description="Modular sponsorship-workflow boilerplate. Feature routes are intentionally unwired.",
+        description="Event Chief AI sponsorship workflow API.",
     )
     app.add_middleware(
         CORSMiddleware,

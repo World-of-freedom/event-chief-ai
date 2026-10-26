@@ -49,9 +49,10 @@ def get_owned_offer(db: Session, owner_id: UUID, offer_id: UUID) -> Offer | None
 def get_owned_task(db: Session, owner_id: UUID, task_id: UUID) -> FollowUpTask | None:
     return db.scalar(
         select(FollowUpTask)
-        .join(Opportunity, FollowUpTask.opportunity_id == Opportunity.id)
-        .join(Event, Opportunity.event_id == Event.id)
-        .options(joinedload(FollowUpTask.opportunity).joinedload(Opportunity.prospect),
-                 joinedload(FollowUpTask.opportunity).joinedload(Opportunity.event))
+        .join(Event, FollowUpTask.event_id == Event.id)
+        .options(
+            joinedload(FollowUpTask.event),
+            joinedload(FollowUpTask.opportunity).joinedload(Opportunity.prospect),
+        )
         .where(FollowUpTask.id == task_id, Event.owner_id == owner_id, FollowUpTask.owner_id == owner_id)
     )

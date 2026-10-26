@@ -197,7 +197,7 @@ function CashCard({ data }: { data: Dashboard }) {
       <CardContent className="space-y-4">
         {target === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No cash target yet. <Link className="text-primary hover:underline" to="/needs">Add a cash need</Link> to track the gap.
+            No cash target yet. <Link className="text-primary hover:underline" to={`/events/${data.event_id}`}>Add a cash requirement</Link> to track the gap.
           </p>
         ) : null}
         <div className="grid gap-4 sm:grid-cols-4">

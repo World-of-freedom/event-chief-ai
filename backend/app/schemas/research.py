@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl
@@ -41,6 +42,7 @@ class ResearchJobCreate(BaseModel):
     support_types_needed: list[str] | None = Field(default=None, description="e.g. ['cash', 'cloud_credits', 'food']")
     sponsorship_tiers: str | None = Field(default=None, max_length=1000)
     sponsor_benefits: str | None = Field(default=None, max_length=2000)
+    eligibility_constraints: str | None = Field(default=None, max_length=2000)
 
     # Context
     previous_edition_count: int | None = Field(default=None, ge=0)
@@ -63,8 +65,47 @@ class LeadEvidenceOut(BaseModel):
     source_url: str
     source_title: str | None
     verified_date: date | None
+    source_excerpt: str | None = None
+    retrieved_at: datetime | None = None
+    source_quality: str = "secondary"
     is_llm_inferred: bool
     created_at: datetime
+
+
+class LeadContactVerificationOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: UUID
+    provider: str
+    provider_status: str
+    provider_result: dict[str, Any] | None
+    credits_used: int
+    verified_at: datetime
+    created_at: datetime
+
+
+class LeadContactOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: UUID
+    lead_id: UUID
+    kind: str
+    value: str
+    normalized_value: str | None
+    contact_name: str | None
+    contact_role: str | None
+    source_url: str
+    source_title: str | None
+    source_excerpt: str | None
+    source_quality: str
+    basic_check_status: str
+    basic_check_results: dict[str, Any] | None
+    display_status: str
+    is_primary: bool
+    retrieved_at: datetime | None = None
+    verifications: list[LeadContactVerificationOut] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
 
 
 class SponsorLeadOut(BaseModel):
@@ -103,11 +144,18 @@ class SponsorLeadOut(BaseModel):
     ranking_explanation: str | None
     confidence: str
 
+    match_score: int = 0
+    confidence_score: int = 0
+    match_score_components: dict[str, Any] | None = None
+    confidence_score_components: dict[str, Any] | None = None
+    scoring_version: str = "sponsor-discovery-v2"
+
     verification_status: str
     website_reachable: bool | None
     verified_at: datetime | None
 
-    evidence: list[LeadEvidenceOut] = []
+    evidence: list[LeadEvidenceOut] = Field(default_factory=list)
+    contacts: list[LeadContactOut] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -129,6 +177,7 @@ class ResearchJobOut(BaseModel):
     primary_audience: str | None
     budget_target_inr: Decimal | None
     support_types_needed: list[str] | None
+    eligibility_constraints: str | None
 
     status: str
     progress_message: str | None
@@ -139,10 +188,26 @@ class ResearchJobOut(BaseModel):
     places_api_calls: int
     hunter_credits_used: int
     llm_tokens_used: int
+    lead_count: int = 0
+
+    normalized_event_brief: dict[str, Any] | None = None
+    search_plan: dict[str, Any] | None = None
+    scoring_version: str = "sponsor-discovery-v2"
 
     created_at: datetime
     updated_at: datetime
 
 
 class ResearchJobWithLeads(ResearchJobOut):
-    leads: list[SponsorLeadOut] = []
+    leads: list[SponsorLeadOut] = Field(default_factory=list)
+
+
+class VerifyLeadContactsRequest(BaseModel):
+    """Explicit selected email contacts, never an implicit bulk verification."""
+
+    contact_ids: list[UUID] = Field(min_length=1, max_length=10)
+
+
+class VerifyLeadContactsResponse(BaseModel):
+    contacts: list[LeadContactOut]
+    credits_used: int

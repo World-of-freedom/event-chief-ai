@@ -38,3 +38,9 @@ def test_supabase_key_accepts_database_connection_string_when_project_uses_that_
 
     assert settings.database_url.get_secret_value().startswith("postgresql+")
     assert settings.require_supabase_auth_key() == "postgresql://postgres:password@db.example.supabase.co:5432/postgres"
+
+
+def test_platform_admin_allowlist_is_server_side_and_normalized() -> None:
+    settings = Settings(_env_file=None, PLATFORM_ADMIN_EMAILS=" Admin@Example.com, second@example.com ")
+
+    assert settings.bootstrap_admin_emails == {"admin@example.com", "second@example.com"}

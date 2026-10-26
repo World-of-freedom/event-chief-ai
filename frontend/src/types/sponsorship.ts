@@ -23,11 +23,16 @@ export interface EventRecord {
   website_url: string | null;
   organizer_name: string | null;
   organizer_email: string | null;
+  organizer_phone: string | null;
+  parent_event_id: string | null;
+  is_subevent: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export type EventInput = Omit<EventRecord, "id" | "created_at" | "updated_at">;
+export type EventInput = Omit<EventRecord, "id" | "created_at" | "updated_at" | "is_subevent"> & {
+  resource_needs?: ResourceNeedInput[];
+};
 
 export interface ResourceNeed {
   id: string;
@@ -35,6 +40,7 @@ export interface ResourceNeed {
   category: NeedCategory;
   title: string;
   description: string | null;
+  details: Record<string, string | number>;
   target_amount: Money | null;
   currency: string;
   target_quantity: number | null;
@@ -180,10 +186,10 @@ export interface OfferPatch extends Partial<OfferInput> {
 
 export interface FollowUpTask {
   id: string;
-  opportunity_id: string;
+  opportunity_id: string | null;
   event_id: string;
   event_name: string;
-  company_name: string;
+  company_name: string | null;
   title: string;
   description: string | null;
   due_at: string | null;

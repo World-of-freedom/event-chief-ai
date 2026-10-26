@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -8,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateTask, useUpdateTask } from "@/features/tasks/useTaskMutations";
+import { createEventTask } from "@/lib/api/sponsorship";
 import { fromDateTimeLocal, toDateTimeLocal } from "@/lib/format";
-import type { FollowUpTask } from "@/types/sponsorship";
+import type { EventRecord, FollowUpTask } from "@/types/sponsorship";
 
 const schema = z.object({
   title: z.string().trim().min(1, "Enter what needs doing").max(200),
@@ -119,4 +123,18 @@ export function RescheduleDialog({ task, open, onOpenChange }: { task: FollowUpT
       </DialogContent>
     </Dialog>
   );
+}
+
+export function NewEventTaskDialog({ events, trigger }: { events: EventRecord[]; trigger: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const [eventId, setEventId] = useState("");
+  const queryClient = useQueryClient();
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { title: "", due_at: "", description: "" } });
+  useEffect(() => { if (open) { reset({ title: "", due_at: "", description: "" }); setEventId((current) => current || events[0]?.id || ""); } }, [open, events, reset]);
+  const mutation = useMutation({
+    mutationFn: (values: Values) => createEventTask({ event_id: eventId, title: values.title.trim(), due_at: fromDateTimeLocal(values.due_at), description: values.description.trim() || null }),
+    onSuccess: (task) => { void queryClient.invalidateQueries({ queryKey: ["tasks"] }); void queryClient.invalidateQueries({ queryKey: ["dashboard", task.event_id] }); toast.success("Task added"); setOpen(false); },
+    onError: (error) => toast.error(errorMessage(error, "Could not add task.")),
+  });
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild>{trigger}</DialogTrigger><DialogContent><DialogHeader><DialogTitle>New task</DialogTitle><DialogDescription>Create an organizer-controlled task for an event.</DialogDescription></DialogHeader><form id="new-event-task-form" onSubmit={handleSubmit((values) => mutation.mutate(values))}><FieldGroup><Field><FieldLabel>Event *</FieldLabel><Select value={eventId} onValueChange={setEventId}><SelectTrigger className="w-full"><SelectValue placeholder="Choose an event" /></SelectTrigger><SelectContent>{events.map((event) => <SelectItem key={event.id} value={event.id}>{event.name}</SelectItem>)}</SelectContent></Select></Field><Field data-invalid={!!errors.title}><FieldLabel htmlFor="event-task-title">What needs doing *</FieldLabel><Input id="event-task-title" {...register("title")} /><FieldError errors={[errors.title]} /></Field><Field><FieldLabel htmlFor="event-task-due">Due</FieldLabel><Input id="event-task-due" type="datetime-local" {...register("due_at")} /></Field><Field><FieldLabel htmlFor="event-task-description">Details</FieldLabel><Textarea id="event-task-description" rows={3} {...register("description")} /></Field></FieldGroup></form><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button type="submit" form="new-event-task-form" disabled={!eventId || mutation.isPending}>{mutation.isPending ? <Spinner /> : null}Add task</Button></DialogFooter></DialogContent></Dialog>;
 }

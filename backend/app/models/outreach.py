@@ -17,6 +17,7 @@ from app.models.enums import (
 )
 
 if TYPE_CHECKING:
+    from app.models.events import Event
     from app.models.prospects import Opportunity
 
 
@@ -91,7 +92,8 @@ class FollowUpTask(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "follow_up_tasks"
 
     owner_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True)
-    opportunity_id: Mapped[UUID] = mapped_column(ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    opportunity_id: Mapped[UUID | None] = mapped_column(ForeignKey("opportunities.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
@@ -99,7 +101,8 @@ class FollowUpTask(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     source: Mapped[TaskSource] = mapped_column(db_enum(TaskSource, "task_source"), nullable=False, default=TaskSource.MANUAL, server_default="manual")
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    opportunity: Mapped[Opportunity] = relationship(back_populates="tasks")
+    event: Mapped[Event] = relationship()
+    opportunity: Mapped[Opportunity | None] = relationship(back_populates="tasks")
 
 
 class WebhookEvent(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):

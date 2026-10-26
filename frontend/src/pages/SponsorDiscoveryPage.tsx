@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, ArrowRight, Download, Plus, Search, Sparkles } from "lucide-react";
 
 import { EmptyState } from "@/components/EmptyState";
@@ -134,7 +134,7 @@ function ResearchJobsOverviewPage() {
     <>
       <PageHeader
         title="Sponsor discovery"
-        description="Autonomous LangChain research engine: finds real brand sponsors via live search, extracts verified evidence, and scores leads."
+        description="Evidence-first research: discovers source-backed sponsor candidates, scores fit separately from confidence, and lets you verify selected emails only."
         actions={<NewDiscoveryButton />}
       />
 
@@ -175,7 +175,7 @@ function ResearchJobsOverviewPage() {
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">Leads</dt>
-                      <dd className="font-medium">{job.leads?.length ?? 0}</dd>
+                      <dd className="font-medium">{job.lead_count}</dd>
                     </div>
                   </dl>
                   <p className="rounded-lg bg-muted p-2.5 text-xs text-muted-foreground">{job.progress_message || "Research run recorded."}</p>
@@ -286,7 +286,7 @@ function ResearchDetailPage() {
         (confidenceFilter === "medium"
           ? lead.confidence === "medium" || lead.confidence === "high"
           : lead.confidence === confidenceFilter);
-      const matchesScore = lead.score_total >= minScoreFilter;
+      const matchesScore = lead.match_score >= minScoreFilter;
       const matchesEmail = !hasEmailOnly || Boolean(lead.contact_email);
 
       return matchesSearch && matchesIndustry && matchesConfidence && matchesScore && matchesEmail;
@@ -305,8 +305,8 @@ function ResearchDetailPage() {
     if (!filteredLeads.length) return;
     const headers = [
       "Company Name",
-      "Total Score",
-      "Confidence",
+      "Match Score",
+      "Confidence Score",
       "Industry",
       "Location",
       "Website",
@@ -318,8 +318,8 @@ function ResearchDetailPage() {
 
     const rows = filteredLeads.map((lead) => [
       `"${lead.company_name.replace(/"/g, '""')}"`,
-      lead.score_total,
-      lead.confidence,
+      lead.match_score,
+      lead.confidence_score,
       `"${(lead.industry || "").replace(/"/g, '""')}"`,
       `"${(lead.location || "").replace(/"/g, '""')}"`,
       `"${(lead.website_url || "").replace(/"/g, '""')}"`,
@@ -465,7 +465,7 @@ function ResearchDetailPage() {
               Showing <span className="font-semibold text-foreground">{filteredLeads.length}</span> ranked sponsor candidates
               {filteredLeads.length !== leads.length ? ` (filtered from ${leads.length})` : null}
             </span>
-            <span>Sorted by composite match score (100 pts)</span>
+            <span>Sorted by deterministic match score, then evidence confidence</span>
           </div>
 
           {filteredLeads.length > 0 ? (
@@ -489,6 +489,7 @@ function ResearchDetailPage() {
 
 function NewResearchPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [currentJob, setCurrentJob] = useState<ResearchJob | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -549,7 +550,7 @@ function NewResearchPage() {
       {currentJob ? (
         <ResearchJobProgress job={currentJob} />
       ) : (
-        <EventDetailsForm onSubmit={handleCreateJob} onCancel={() => navigate("/discovery")} isSubmitting={isSubmitting} />
+        <EventDetailsForm onSubmit={handleCreateJob} onCancel={() => navigate("/discovery")} isSubmitting={isSubmitting} initialEventId={searchParams.get("event")} />
       )}
     </>
   );

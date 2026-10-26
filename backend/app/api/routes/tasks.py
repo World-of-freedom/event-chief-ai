@@ -43,14 +43,16 @@ def offer_out(offer: Offer) -> OfferOut:
     return out
 
 
-def task_out(task: FollowUpTask, opportunity: Opportunity, now: datetime) -> TaskOut:
+def task_out(task: FollowUpTask, now: datetime, opportunity: Opportunity | None = None) -> TaskOut:
     due = _as_utc(task.due_at)
+    linked_opportunity = opportunity or task.opportunity
+    event = opportunity.event if opportunity else task.event
     return TaskOut(
         id=task.id,
         opportunity_id=task.opportunity_id,
-        event_id=opportunity.event_id,
-        event_name=opportunity.event.name,
-        company_name=opportunity.prospect.company_name,
+        event_id=task.event_id,
+        event_name=event.name,
+        company_name=linked_opportunity.prospect.company_name if linked_opportunity else None,
         title=task.title,
         description=task.description,
         due_at=task.due_at,
@@ -76,6 +78,13 @@ def _check_need_belongs_to_event(db: Session, need_id: UUID | None, event_id: UU
     need = db.get(ResourceNeed, need_id)
     if not need or need.event_id != event_id:
         raise HTTPException(status_code=422, detail="resource_need_id must be a need of the same event.")
+
+
+def _require_owned_event(db: Session, user: CurrentUser, event_id: UUID) -> Event:
+    event = db.scalar(select(Event).where(Event.id == event_id, Event.owner_id == user.uuid))
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    return event
 
 
 # ── Offers ───────────────────────────────────────────────────────────────────
@@ -172,21 +181,47 @@ def list_tasks(
 ):
     query = (
         select(FollowUpTask)
-        .join(Opportunity, FollowUpTask.opportunity_id == Opportunity.id)
-        .join(Event, Opportunity.event_id == Event.id)
-        .options(joinedload(FollowUpTask.opportunity).joinedload(Opportunity.prospect),
-                 joinedload(FollowUpTask.opportunity).joinedload(Opportunity.event))
+        .join(Event, FollowUpTask.event_id == Event.id)
+        .options(
+            joinedload(FollowUpTask.event),
+            joinedload(FollowUpTask.opportunity).joinedload(Opportunity.prospect),
+        )
         .where(FollowUpTask.owner_id == user.uuid, Event.owner_id == user.uuid)
     )
     if event_id:
-        query = query.where(Opportunity.event_id == event_id)
+        query = query.where(FollowUpTask.event_id == event_id)
     if status_filter:
         query = query.where(FollowUpTask.status == status_filter)
     now = datetime.now(timezone.utc)
     if overdue_only:
         query = query.where(FollowUpTask.due_at < now, FollowUpTask.status.in_(list(ACTIVE_TASK_STATUSES)))
     tasks = db.scalars(query.order_by(asc(FollowUpTask.due_at).nulls_last(), FollowUpTask.created_at)).unique().all()
-    return [task_out(t, t.opportunity, now) for t in tasks]
+    return [task_out(t, now) for t in tasks]
+
+
+@router.post("/tasks", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
+def create_event_task(
+    body: TaskInput,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
+    if body.event_id is None:
+        raise HTTPException(status_code=422, detail="event_id is required for an event task.")
+    event = _require_owned_event(db, user, body.event_id)
+    task = FollowUpTask(
+        owner_id=user.uuid,
+        event_id=event.id,
+        title=body.title,
+        description=body.description,
+        due_at=_as_utc(body.due_at),
+        status=TaskStatusEnum.OPEN,
+        source=TaskSource.MANUAL,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    task.event = event
+    return task_out(task, datetime.now(timezone.utc))
 
 
 @router.post("/opportunities/{opportunity_id}/tasks", response_model=TaskOut, status_code=status.HTTP_201_CREATED)
@@ -199,6 +234,7 @@ def create_task(
     opportunity = _require_opportunity(db, user, opportunity_id)
     task = FollowUpTask(
         owner_id=user.uuid,
+        event_id=opportunity.event_id,
         opportunity_id=opportunity.id,
         title=body.title,
         description=body.description,
@@ -209,7 +245,7 @@ def create_task(
     db.add(task)
     db.commit()
     db.refresh(task)
-    return task_out(task, opportunity, datetime.now(timezone.utc))
+    return task_out(task, datetime.now(timezone.utc), opportunity)
 
 
 @router.patch("/tasks/{task_id}", response_model=TaskOut)
@@ -240,4 +276,4 @@ def update_task(
         setattr(task, key, value)
     db.commit()
     db.refresh(task)
-    return task_out(task, task.opportunity, datetime.now(timezone.utc))
+    return task_out(task, datetime.now(timezone.utc))

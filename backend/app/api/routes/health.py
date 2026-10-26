@@ -5,4 +5,4 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health_check() -> dict[str, str]:
-    return {"status": "ok", "service": "event-chief-api", "mode": "boilerplate"}
+    return {"status": "ok", "service": "event-chief-api", "mode": "sponsorship-mvp"}

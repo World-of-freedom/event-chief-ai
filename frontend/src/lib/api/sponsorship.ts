@@ -65,5 +65,20 @@ export const listTasks = (filters: { event_id?: string; status?: TaskStatus | ""
   apiClient<FollowUpTask[]>(`/tasks${query(filters)}`);
 export const createTask = (opportunityId: string, input: { title: string; due_at?: string | null; description?: string | null }) =>
   apiClient<FollowUpTask>(`/opportunities/${opportunityId}/tasks`, json("POST", input));
+export const createEventTask = (input: { event_id: string; title: string; due_at?: string | null; description?: string | null }) =>
+  apiClient<FollowUpTask>("/tasks", json("POST", input));
 export const updateTask = (id: string, input: { title?: string; due_at?: string | null; description?: string | null; status?: TaskStatus }) =>
   apiClient<FollowUpTask>(`/tasks/${id}`, json("PATCH", input));
+
+export type OutreachMessage = { id: string; channel: string; direction: string; message_type: string; subject: string | null; status: string; sent_at: string | null; created_at: string };
+export const createEmailDraft = (opportunityId: string) => apiClient<OutreachMessage>(`/opportunities/${opportunityId}/emails/draft`, json("POST", {}));
+export const approveEmail = (messageId: string) => apiClient<OutreachMessage>(`/outreach/${messageId}/approve`, json("POST", {}));
+export const sendEmail = (messageId: string) => apiClient<OutreachMessage>(`/outreach/${messageId}/send`, json("POST", {}));
+export const recordManualInteraction = (opportunityId: string, input: { direction: "outbound" | "inbound"; body: string; subject?: string | null; follow_up_title?: string | null; follow_up_due_at?: string | null }) =>
+  apiClient<OutreachMessage>(`/opportunities/${opportunityId}/responses`, json("POST", input));
+
+export type AdminMe = { is_platform_admin: boolean };
+export type AdminUser = { id: string; email: string | null; created_at: string | null; email_confirmed_at: string | null; banned_until: string | null; is_platform_admin: boolean };
+export const getAdminMe = () => apiClient<AdminMe>("/admin/me");
+export const listAdminUsers = () => apiClient<AdminUser[]>("/admin/users");
+export const updateAdminRole = (id: string, isPlatformAdmin: boolean) => apiClient<{ is_platform_admin: boolean }>(`/admin/users/${id}/role`, json("PATCH", { is_platform_admin: isPlatformAdmin }));

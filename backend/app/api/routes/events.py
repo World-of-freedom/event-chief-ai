@@ -18,6 +18,7 @@ from app.models.prospects import Opportunity, Prospect
 from app.repositories.sponsorship import get_owned_event, get_owned_need
 from app.schemas.events import (
     DashboardOut,
+    EventCreateInput,
     EventInput,
     EventOut,
     EventPatch,
@@ -26,7 +27,7 @@ from app.schemas.events import (
     ResourceNeedInput,
     ResourceNeedOut,
     ResourceNeedPatch,
-    check_need_amounts,
+    check_need_details,
 )
 from app.services.dashboard import (
     SECURED_OFFER_STATUSES,
@@ -60,6 +61,37 @@ def _json_values(payload: dict) -> dict:
     return {key: (str(value) if key.endswith("_url") and value is not None else value) for key, value in payload.items()}
 
 
+def _descendant_ids(db: Session, owner_id: UUID, root_id: UUID) -> set[UUID]:
+    """Return a complete event subtree without relying on database-specific CTEs."""
+    rows = db.execute(select(Event.id, Event.parent_event_id).where(Event.owner_id == owner_id)).all()
+    children: dict[UUID, list[UUID]] = {}
+    for event_id, parent_id in rows:
+        if parent_id:
+            children.setdefault(parent_id, []).append(event_id)
+    found = {root_id}
+    pending = [root_id]
+    while pending:
+        parent_id = pending.pop()
+        for child_id in children.get(parent_id, []):
+            if child_id not in found:
+                found.add(child_id)
+                pending.append(child_id)
+    return found
+
+
+def _validate_parent_event(db: Session, user: CurrentUser, event: Event | None, parent_id: UUID | None) -> Event | None:
+    if parent_id is None:
+        return None
+    parent = _require_event(db, user, parent_id)
+    if event is None:
+        return parent
+    if parent.id == event.id:
+        raise HTTPException(status_code=422, detail="An event cannot be its own parent.")
+    if parent.id in _descendant_ids(db, user.uuid, event.id):
+        raise HTTPException(status_code=422, detail="An event cannot be linked to one of its descendants.")
+    return parent
+
+
 # ── Events ───────────────────────────────────────────────────────────────────
 
 
@@ -71,9 +103,15 @@ def list_events(user: CurrentUser = Depends(get_current_user), db: Session = Dep
 
 
 @router.post("", response_model=EventOut, status_code=status.HTTP_201_CREATED)
-def create_event(body: EventInput, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db_session)):
-    event = Event(owner_id=user.uuid, **_json_values(body.model_dump()))
+def create_event(body: EventCreateInput, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db_session)):
+    data = body.model_dump(exclude={"resource_needs"})
+    parent = _validate_parent_event(db, user, None, data.get("parent_event_id"))
+    data["is_subevent"] = parent is not None
+    event = Event(owner_id=user.uuid, **_json_values(data))
     db.add(event)
+    db.flush()
+    for need_input in body.resource_needs:
+        db.add(ResourceNeed(event_id=event.id, **need_input.model_dump()))
     db.commit()
     db.refresh(event)
     return event
@@ -100,6 +138,9 @@ def update_event(
     end = changes.get("end_date", event.end_date)
     if start and end and end < start:
         raise HTTPException(status_code=422, detail="end_date cannot be before start_date")
+    if "parent_event_id" in changes:
+        parent = _validate_parent_event(db, user, event, changes["parent_event_id"])
+        changes["is_subevent"] = parent is not None
     for key, value in changes.items():
         setattr(event, key, value)
     db.commit()
@@ -122,24 +163,26 @@ def delete_event(event_id: UUID, user: CurrentUser = Depends(get_current_user), 
 def event_dashboard(event_id: UUID, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db_session)):
     event = _require_event(db, user, event_id)
 
-    needs = db.scalars(select(ResourceNeed).where(ResourceNeed.event_id == event.id).order_by(ResourceNeed.created_at)).all()
+    # Parent dashboards roll up every nested event while a child dashboard
+    # remains scoped to that child's own branch.
+    event_ids = _descendant_ids(db, user.uuid, event.id)
+    needs = db.scalars(select(ResourceNeed).where(ResourceNeed.event_id.in_(event_ids)).order_by(ResourceNeed.created_at)).all()
     offer_rows = db.execute(
         select(Offer, Prospect.company_name)
         .join(Opportunity, Offer.opportunity_id == Opportunity.id)
         .join(Prospect, Opportunity.prospect_id == Prospect.id)
-        .where(Opportunity.event_id == event.id)
+        .where(Opportunity.event_id.in_(event_ids))
     ).all()
-    opportunity_statuses = db.scalars(select(Opportunity.status).where(Opportunity.event_id == event.id)).all()
+    opportunity_statuses = db.scalars(select(Opportunity.status).where(Opportunity.event_id.in_(event_ids))).all()
     tasks = db.scalars(
         select(FollowUpTask)
-        .join(Opportunity, FollowUpTask.opportunity_id == Opportunity.id)
-        .where(Opportunity.event_id == event.id, FollowUpTask.owner_id == user.uuid)
+        .where(FollowUpTask.event_id.in_(event_ids), FollowUpTask.owner_id == user.uuid)
     ).all()
     calls = db.execute(
         select(Call, Prospect.company_name)
         .join(Opportunity, Call.opportunity_id == Opportunity.id)
         .join(Prospect, Opportunity.prospect_id == Prospect.id)
-        .where(Opportunity.event_id == event.id)
+        .where(Opportunity.event_id.in_(event_ids))
         .order_by(desc(Call.created_at))
         .limit(5)
     ).all()
@@ -191,7 +234,11 @@ def event_dashboard(event_id: UUID, user: CurrentUser = Depends(get_current_user
 
 
 @router.get("/{event_id}/needs", response_model=list[ResourceNeedOut])
-def list_needs(event_id: UUID, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db_session)):
+def list_needs(
+    event_id: UUID,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+):
     event = _require_event(db, user, event_id)
     return db.scalars(select(ResourceNeed).where(ResourceNeed.event_id == event.id).order_by(ResourceNeed.created_at)).all()
 
@@ -225,8 +272,10 @@ def update_need(
             raise HTTPException(status_code=422, detail=f"{required} cannot be empty.")
     category = changes.get("category", need.category.value if hasattr(need.category, "value") else need.category)
     amount = changes.get("target_amount", need.target_amount)
+    quantity = changes.get("target_quantity", need.target_quantity)
+    details = changes.get("details", need.details) or {}
     try:
-        check_need_amounts(category, amount)
+        check_need_details(category, amount, quantity, details)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     for key, value in changes.items():

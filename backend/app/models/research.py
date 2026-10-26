@@ -1,6 +1,7 @@
-"""ORM models for the sponsor discovery research pipeline.
+"""ORM models for evidence-backed sponsor discovery.
 
-Tables: research_jobs · sponsor_leads · lead_evidence · lead_outreach
+Contacts and provider verifications are separate from a lead, so a sourced
+contact route is never confused with a verified mailbox or phone line.
 """
 
 from __future__ import annotations
@@ -60,7 +61,6 @@ class ResearchJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
         index=True,
     )
-
     # Event details snapshot — captured at job creation so the job is self-contained
     event_name: Mapped[str] = mapped_column(String(200), nullable=False)
     event_type: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -81,6 +81,7 @@ class ResearchJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     support_types_needed: Mapped[list | None] = mapped_column(JSON, nullable=True)  # ["cash", "cloud_credits", ...]
     sponsorship_tiers: Mapped[str | None] = mapped_column(Text, nullable=True)
     sponsor_benefits: Mapped[str | None] = mapped_column(Text, nullable=True)
+    eligibility_constraints: Mapped[str | None] = mapped_column(Text, nullable=True)
     previous_edition_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     previous_sponsors_hint: Mapped[str | None] = mapped_column(Text, nullable=True)
     additional_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -102,8 +103,32 @@ class ResearchJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     hunter_credits_used: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     llm_tokens_used: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
+    # Reproducible run records. The raw event snapshot above is useful for the
+    # UI; these JSON documents retain the normalized brief and Call-1 plan.
+    normalized_event_brief: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    search_plan: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    scoring_version: Mapped[str] = mapped_column(String(80), nullable=False, server_default="sponsor-discovery-v2")
+
     # Relationships
     leads: Mapped[list[SponsorLead]] = relationship("SponsorLead", back_populates="job", cascade="all, delete-orphan")
+
+    @property
+    def lead_count(self) -> int:
+        return len(self.leads)
+
+
+class CompanyResearchCache(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Per-organizer cache of public, cited company research (not event scores)."""
+
+    __tablename__ = "company_research_cache"
+    __table_args__ = (UniqueConstraint("owner_id", "canonical_domain", name="uq_company_research_cache_owner_domain"),)
+
+    owner_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    canonical_domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    research_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class SponsorLead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -154,6 +179,14 @@ class SponsorLead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     ranking_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[str] = mapped_column(String(20), nullable=False, server_default="low")  # low | medium | high
 
+    # v2 scores preserve the requested distinction between event fit and the
+    # reliability of the retained research record.
+    match_score: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    confidence_score: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    match_score_components: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    confidence_score_components: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    scoring_version: Mapped[str] = mapped_column(String(80), nullable=False, server_default="sponsor-discovery-v2")
+
     # Verification
     verification_status: Mapped[LeadVerificationStatus] = mapped_column(
         db_enum(LeadVerificationStatus, "lead_verification_status"),
@@ -167,6 +200,7 @@ class SponsorLead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Relationships
     job: Mapped[ResearchJob] = relationship("ResearchJob", back_populates="leads")
     evidence: Mapped[list[LeadEvidence]] = relationship("LeadEvidence", back_populates="lead", cascade="all, delete-orphan")
+    contacts: Mapped[list[LeadContact]] = relationship("LeadContact", back_populates="lead", cascade="all, delete-orphan")
     outreach: Mapped[list[LeadOutreach]] = relationship("LeadOutreach", back_populates="lead", cascade="all, delete-orphan")
 
 
@@ -188,10 +222,59 @@ class LeadEvidence(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
     source_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     verified_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_quality: Mapped[str] = mapped_column(String(20), nullable=False, server_default="secondary")
     is_llm_inferred: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
     # Relationship
     lead: Mapped[SponsorLead] = relationship("SponsorLead", back_populates="evidence")
+
+
+class LeadContact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """A cited contact value or official contact route for a sponsor lead."""
+
+    __tablename__ = "lead_contacts"
+
+    lead_id: Mapped[UUID] = mapped_column(
+        ForeignKey("sponsor_leads.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(30), nullable=False)  # email | phone | contact_form
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    contact_role: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_quality: Mapped[str] = mapped_column(String(20), nullable=False, server_default="secondary")
+    basic_check_status: Mapped[str] = mapped_column(String(30), nullable=False, server_default="not_checked")
+    basic_check_results: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    display_status: Mapped[str] = mapped_column(String(80), nullable=False, server_default="needs_review")
+    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    lead: Mapped[SponsorLead] = relationship("SponsorLead", back_populates="contacts")
+    verifications: Mapped[list[LeadContactVerification]] = relationship(
+        "LeadContactVerification", back_populates="contact", cascade="all, delete-orphan"
+    )
+
+
+class LeadContactVerification(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
+    """Immutable provider result for an explicit contact verification request."""
+
+    __tablename__ = "lead_contact_verifications"
+
+    contact_id: Mapped[UUID] = mapped_column(
+        ForeignKey("lead_contacts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    provider_status: Mapped[str] = mapped_column(String(80), nullable=False)
+    provider_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    credits_used: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    contact: Mapped[LeadContact] = relationship("LeadContact", back_populates="verifications")
 
 
 class LeadOutreach(Base, UUIDPrimaryKeyMixin, TimestampMixin):

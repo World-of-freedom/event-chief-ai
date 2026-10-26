@@ -1,16 +1,17 @@
 # Event Chief AI
 
-This repository is a modular, production-oriented boilerplate for the Event Chief AI sponsorship MVP. It provides typed contracts, route scaffolding, a responsive React shell, and an explicit Alembic-managed PostgreSQL schema. It deliberately does **not** implement sponsorship business logic, live discovery, messaging, or calling workflows.
+This repository is a modular Event Chief AI sponsorship MVP with a typed FastAPI API, React workspace, and explicit Alembic-managed PostgreSQL schema.
 
 ## Current state
 
 - Supabase email/password authentication; every workspace route redirects to `/auth` until signed in.
-- **Working end to end** (owner-scoped API + UI): events, resource needs, event dashboard, sponsor pipeline
-  (prospects, opportunities, status history), offers and follow-up tasks.
+- **Working end to end** (owner-scoped API + UI): events with in-context resource requirements, optional sub-events,
+  parent dashboards, sponsor pipeline (prospects, scoped opportunities, status history), offers, and event or opportunity tasks.
 - **Sponsor discovery** runs the AI research engine (Tavily, Google Places, Hunter, LLM). A run can be linked to a
   saved event, and any lead can be added to an event's pipeline ("Add to pipeline").
-- **Not built yet (needs business decisions first):** email drafting/approval/sending (Resend) and calls (Bolna).
-  Their routes still return `501 Not Implemented`.
+- **Email workflow:** organizers create a persisted draft, explicitly approve it (with an audit record), then send it through
+  Resend only when server-side configuration is present. Manual interactions and optional follow-up tasks are recorded.
+  Bolna calling remains fail-closed until its final call contract and staging configuration are supplied.
 
 ### Rules the code enforces
 
@@ -24,6 +25,10 @@ This repository is a modular, production-oriented boilerplate for the Event Chie
 - **Dashboard:** only `accepted`/`fulfilled` offers count as secured; cash and in-kind are separate; unknown amounts
   and non-INR amounts are counted, never summed.
 - **AI leads:** imported prospects start `unverified`, including Hunter-found emails, until the organizer reviews them.
+- **Scopes:** requirements, discovery jobs, opportunities and tasks can be event-level or tied to a sub-event. A prospect is
+  reused across scopes; event-level and child-level opportunities remain independently staged and auditable.
+- **Administration:** `/admin` is server-enforced. Bootstrap the first administrator with the server-only
+  `PLATFORM_ADMIN_EMAILS` allowlist, then grant or revoke other administrator roles in the app.
 
 ## Layout
 
@@ -37,7 +42,7 @@ frontend/                  # Vite + React + TypeScript, shadcn/ui (added via the
   src/pages/               # route-level pages
   src/lib/api/             # typed API clients
 backend/
-  app/api/routes/          # owner-scoped HTTP routes (email/call/webhook routes are still 501 stubs)
+  app/api/routes/          # owner-scoped HTTP routes (Bolna/webhook routes remain fail-closed)
   app/models/              # SQLAlchemy models (Alembic source of truth)
   app/schemas/             # Pydantic request/response models with validation
   app/repositories/        # owner-scoped loaders
@@ -147,11 +152,8 @@ Never edit a migration that has been applied to a shared environment. Add a new 
 
 ## Remaining work
 
-1. Approval-gated email drafts and a Resend adapter with a persisted idempotency key (blocked on sender domain,
-   email copy and organizer identity decisions).
-2. Bolna adapter, webhook verification and call review (blocked on the agent script, consent rules and staging access).
-3. Hosting choice (Render or Railway) and production URLs.
-4. The research-job list does not return lead counts yet (cards show 0).
+1. Bolna adapter, provider-verified webhook contract and call review (blocked on the agent script, consent rules and staging access).
+2. Hosting choice (Render or Railway) and production URLs.
 
 ## Safety boundaries to preserve
 

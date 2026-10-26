@@ -40,7 +40,12 @@ export function fromDateTimeLocal(value: string): string | null {
 
 export const needCategoryLabels: Record<NeedCategory, string> = {
   cash: "Cash",
-  cloud_credits: "Cloud credits",
+  cloud_credits: "Cloud & API credits",
+  equipment: "Equipment",
+  speakers: "Speakers",
+  mentors: "Mentors",
+  venue: "Venue",
+  volunteers: "Volunteers",
   prizes: "Prizes",
   food: "Food & beverage",
   merchandise: "Merchandise",

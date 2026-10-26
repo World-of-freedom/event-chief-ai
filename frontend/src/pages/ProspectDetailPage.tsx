@@ -19,22 +19,40 @@ import {
 import { EmptyState } from "@/components/EmptyState";
 import { LoadingState } from "@/components/LoadingState";
 import { PageHeader } from "@/components/PageHeader";
-import { StatusPill, confidenceTone, type Tone } from "@/components/StatusPill";
+import { StatusPill, type Tone } from "@/components/StatusPill";
 import { LeadEvidenceList } from "@/components/discovery/LeadEvidenceList";
 import { ScoreBadge, scoreTone } from "@/components/discovery/ScoreBadge";
 import { LinkedinIcon, TwitterIcon } from "@/components/icons/SocialIcons";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getLeadDetails, getResearchJob } from "@/lib/api/research";
+import { getLeadDetails, getResearchJob, verifySelectedLeadEmails } from "@/lib/api/research";
 import { AddLeadToPipelineDialog } from "@/features/pipeline/AddLeadToPipelineDialog";
-import type { SponsorLead } from "@/types/domain";
+import type { LeadContact, SponsorLead } from "@/types/domain";
 
 const leadVerification: Record<SponsorLead["verification_status"], { label: string; tone: Tone }> = {
   raw: { label: "Unverified", tone: "neutral" },
   verified: { label: "Verified", tone: "success" },
   rejected: { label: "Rejected", tone: "danger" },
 };
+
+const contactStatus: Record<string, string> = {
+  source_confirmed_mailbox_unverified: "Source confirmed · Mailbox unverified",
+  deliverability_checked: "Deliverability checked · Provider result",
+  could_not_confirm: "Could not confirm",
+  source_confirmed_reachability_unchecked: "Source confirmed · Reachability unchecked",
+  official_route_available: "Official contact route",
+  route_needs_review: "Contact route needs review",
+  needs_review: "Not found or needs review",
+};
+
+function contactTone(contact: LeadContact): Tone {
+  if (contact.display_status === "deliverability_checked") return "success";
+  if (contact.display_status.includes("confirmed") || contact.display_status === "official_route_available") return "info";
+  if (contact.display_status === "could_not_confirm" || contact.display_status === "needs_review") return "warning";
+  return "neutral";
+}
 
 function ExternalRow({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
   return (
@@ -65,6 +83,9 @@ export function ProspectDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedEmail, setCopiedEmail] = useState(false);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
   const location = useLocation();
   // Return to the research run the lead was opened from, when we know it.
   const backTo = (location.state as { from?: string } | null)?.from ?? "/discovery";
@@ -93,14 +114,37 @@ export function ProspectDetailPage() {
     };
   }, [leadId]);
 
-  const handleCopyEmail = async () => {
-    if (!lead?.contact_email) return;
+  const handleCopyEmail = async (email = lead?.contact_email) => {
+    if (!email) return;
     try {
-      await navigator.clipboard.writeText(lead.contact_email);
+      await navigator.clipboard.writeText(email);
       setCopiedEmail(true);
       setTimeout(() => setCopiedEmail(false), 2000);
     } catch {
       // Clipboard can be blocked (e.g. non-secure context); the email stays visible to copy manually.
+    }
+  };
+
+  const toggleContact = (contactId: string, checked: boolean) => {
+    setSelectedContactIds((current) => checked ? [...new Set([...current, contactId])] : current.filter((id) => id !== contactId));
+  };
+
+  const handleVerifySelected = async () => {
+    if (!lead || !selectedContactIds.length) return;
+    setIsVerifying(true);
+    setVerificationError(null);
+    try {
+      const result = await verifySelectedLeadEmails(lead.id, selectedContactIds);
+      const updates = new Map(result.contacts.map((contact) => [contact.id, contact]));
+      setLead((current) => current ? {
+        ...current,
+        contacts: current.contacts.map((contact) => updates.get(contact.id) || contact),
+      } : current);
+      setSelectedContactIds([]);
+    } catch (err: any) {
+      setVerificationError(err?.message || "Could not verify the selected email addresses.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -169,8 +213,8 @@ export function ProspectDetailPage() {
         <Card>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusPill tone={scoreTone(lead.score_total)}>Match score {lead.score_total}/100</StatusPill>
-              <StatusPill tone={confidenceTone(lead.confidence)} className="capitalize">{lead.confidence} confidence</StatusPill>
+              <StatusPill tone={scoreTone(lead.match_score)}>Match score {lead.match_score}/100</StatusPill>
+              <StatusPill tone={scoreTone(lead.confidence_score)}>Confidence score {lead.confidence_score}/100</StatusPill>
               <StatusPill tone={leadVerification[lead.verification_status].tone}>{leadVerification[lead.verification_status].label}</StatusPill>
               {lead.location ? (
                 <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
@@ -213,16 +257,11 @@ export function ProspectDetailPage() {
               </CardHeader>
               <CardContent>
                 <ScoreBadge
-                  score={lead.score_total}
+                  matchScore={lead.match_score}
+                  confidenceScore={lead.confidence_score}
                   showBreakdown
-                  breakdown={{
-                    relevance: lead.score_relevance,
-                    industryFit: lead.score_industry_fit,
-                    sponsorshipHistory: lead.score_sponsorship_history,
-                    geographicFit: lead.score_geographic_fit,
-                    budgetCompatibility: lead.score_budget_compatibility,
-                    contactability: lead.score_contactability,
-                  }}
+                  matchComponents={lead.match_score_components}
+                  confidenceComponents={lead.confidence_score_components}
                 />
               </CardContent>
             </Card>
@@ -246,29 +285,53 @@ export function ProspectDetailPage() {
                 <CardTitle>Contact &amp; links</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                {lead.contact_email ? (
-                  <div className="rounded-lg border bg-background p-3">
-                    <div className="flex items-center justify-between gap-2 text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5"><Mail className="size-3.5" /> Email</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="outline" size="icon-xs" onClick={() => void handleCopyEmail()} aria-label={copiedEmail ? "Email copied" : "Copy email"}>
-                            {copiedEmail ? <Check className="text-success" /> : <Copy />}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{copiedEmail ? "Copied" : "Copy email"}</TooltipContent>
-                      </Tooltip>
+                {lead.contacts.length ? lead.contacts.map((contact) => (
+                  <div key={contact.id} className="space-y-2 rounded-lg border bg-background p-3">
+                    <div className="flex items-start justify-between gap-2 text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5 capitalize">
+                        {contact.kind === "email" ? <Mail className="size-3.5" /> : contact.kind === "phone" ? <Phone className="size-3.5" /> : <Globe className="size-3.5" />}
+                        {contact.kind.replace("_", " ")}
+                      </span>
+                      {contact.kind === "email" ? (
+                        <div className="flex items-center gap-1">
+                          <Checkbox
+                            id={`verify-${contact.id}`}
+                            checked={selectedContactIds.includes(contact.id)}
+                            onCheckedChange={(checked) => toggleContact(contact.id, checked === true)}
+                            aria-label={`Select ${contact.value} for verification`}
+                          />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="outline" size="icon-xs" onClick={() => void handleCopyEmail(contact.normalized_value || contact.value)} aria-label={copiedEmail ? "Email copied" : "Copy email"}>
+                                {copiedEmail ? <Check className="text-success" /> : <Copy />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{copiedEmail ? "Copied" : "Copy email"}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      ) : null}
                     </div>
-                    <p className="mt-2 font-medium break-all">{lead.contact_email}</p>
+                    {contact.kind === "contact_form" ? (
+                      <a className="font-medium text-primary hover:underline" href={contact.value} target="_blank" rel="noreferrer">Open contact route</a>
+                    ) : <p className="font-medium break-all">{contact.normalized_value || contact.value}</p>}
+                    {contact.contact_role ? <p className="text-xs text-muted-foreground">{contact.contact_role}</p> : null}
+                    <StatusPill tone={contactTone(contact)}>{contactStatus[contact.display_status] || "Needs review"}</StatusPill>
+                    <a href={contact.source_url} target="_blank" rel="noreferrer" className="block truncate text-xs text-primary hover:underline">
+                      Source: {contact.source_title || contact.source_url}
+                    </a>
+                    {contact.retrieved_at ? <p className="text-[11px] text-muted-foreground">Retrieved {new Date(contact.retrieved_at).toLocaleDateString()}</p> : null}
                   </div>
-                ) : (
-                  <p className="rounded-lg border border-dashed p-3 text-muted-foreground">No direct email found</p>
+                )) : (
+                  <p className="rounded-lg border border-dashed p-3 text-muted-foreground">No direct contact found. Use the official contact or sponsorship route when available.</p>
                 )}
 
-                {lead.contact_phone ? (
-                  <div className="rounded-lg border bg-background p-3">
-                    <span className="inline-flex items-center gap-1.5 text-muted-foreground"><Phone className="size-3.5" /> Phone</span>
-                    <p className="mt-2 font-medium">{lead.contact_phone}</p>
+                {selectedContactIds.length ? (
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="text-xs text-muted-foreground">Hunter is used only for the selected emails. A provider result checks deliverability, not sponsorship relevance.</p>
+                    <Button size="sm" onClick={() => void handleVerifySelected()} disabled={isVerifying}>
+                      {isVerifying ? "Verifying selected emails…" : `Verify selected emails (${selectedContactIds.length})`}
+                    </Button>
+                    {verificationError ? <p className="text-xs text-destructive">{verificationError}</p> : null}
                   </div>
                 ) : null}
 

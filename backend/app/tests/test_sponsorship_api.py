@@ -44,9 +44,15 @@ def test_full_sponsorship_flow_and_ownership(client: TestClient) -> None:
         assert bad.status_code == 422
         assert client.post(f"/api/v1/events/{event_id}/needs", json={"category": "cash", "title": "Prize pool"}).status_code == 422
 
-        cash_need = client.post(f"/api/v1/events/{event_id}/needs", json={"category": "cash", "title": "Prize pool", "target_amount": "50000"})
+        cash_need = client.post(f"/api/v1/events/{event_id}/needs", json={
+            "category": "cash", "title": "Prize pool", "target_amount": "50000",
+            "details": {"funding_purpose": "Prize pool"}, "description": "Cash prizes for finalists.",
+        })
         assert cash_need.status_code == 201, cash_need.text
-        credits_need = client.post(f"/api/v1/events/{event_id}/needs", json={"category": "cloud_credits", "title": "Cloud credits", "target_quantity": 100})
+        credits_need = client.post(f"/api/v1/events/{event_id}/needs", json={
+            "category": "cloud_credits", "title": "Cloud credits", "target_amount": "100000",
+            "details": {"quantity": "100 developer accounts"}, "description": "Cloud credits for participant projects.",
+        })
         assert credits_need.status_code == 201
 
         # Manual prospect + opportunity in one step

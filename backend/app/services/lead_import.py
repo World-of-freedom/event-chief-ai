@@ -32,8 +32,8 @@ def prospect_fields_from_lead(lead: SponsorLead, job: ResearchJob) -> dict[str, 
     notes = [
         f"Imported from AI sponsor discovery run \"{job.event_name}\" (lead {lead.id}).",
         f"Discovery source: {lead.discovery_source or 'live web research'}.",
-        f"Match score {lead.score_total}/100, {lead.confidence} confidence, {evidence_count} cited evidence item(s).",
-        "Contact details were found automatically and are unverified until reviewed.",
+        f"Match score {lead.match_score}/100, confidence score {lead.confidence_score}/100, {evidence_count} cited evidence item(s).",
+        "Contacts retain their source and free-check status. Provider verification, when present, is still not proof of sponsorship relevance.",
     ]
     website = lead.website_url or (f"https://{lead.domain}" if lead.domain else None)
     return {

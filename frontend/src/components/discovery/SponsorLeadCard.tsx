@@ -1,7 +1,7 @@
 import { Building2, ExternalLink, Globe, MapPin, Plus } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
-import { StatusPill, confidenceTone } from "@/components/StatusPill";
+import { StatusPill } from "@/components/StatusPill";
 import { scoreTone } from "@/components/discovery/ScoreBadge";
 import { AddLeadToPipelineDialog } from "@/features/pipeline/AddLeadToPipelineDialog";
 import { Button } from "@/components/ui/button";
@@ -49,8 +49,8 @@ export function SponsorLeadCard({ lead, eventId }: { lead: SponsorLead; eventId?
         {lead.description ? <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">{lead.description}</p> : null}
 
         <div className="mt-auto flex flex-wrap items-center gap-2">
-          <StatusPill tone={scoreTone(lead.score_total)}>Match {lead.score_total}/100</StatusPill>
-          <StatusPill tone={confidenceTone(lead.confidence)} className="capitalize">{lead.confidence} confidence</StatusPill>
+          <StatusPill tone={scoreTone(lead.match_score)}>Match {lead.match_score}/100</StatusPill>
+          <StatusPill tone={scoreTone(lead.confidence_score)}>Confidence {lead.confidence_score}/100</StatusPill>
         </div>
       </CardContent>
 

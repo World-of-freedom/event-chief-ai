@@ -33,7 +33,9 @@ export function LeadEvidenceList({ evidence }: { evidence: LeadEvidence[] }) {
               <CheckCircle2 />
               {formatEvidenceType(item.evidence_type)}
             </StatusPill>
-            {item.is_llm_inferred ? (
+            {item.source_quality === "official" ? (
+              <span className="font-medium text-success">Official source</span>
+            ) : item.is_llm_inferred ? (
               <span className="flex items-center gap-1 text-warning" title="Inferred from context">
                 <AlertCircle className="size-3" /> Inferred
               </span>
@@ -43,6 +45,11 @@ export function LeadEvidenceList({ evidence }: { evidence: LeadEvidence[] }) {
           </div>
 
           <p className="leading-relaxed text-foreground">{item.claim}</p>
+          {item.source_excerpt ? (
+            <blockquote className="border-l-2 border-primary/40 pl-2 text-muted-foreground">
+              “{item.source_excerpt}”
+            </blockquote>
+          ) : null}
 
           {item.source_url ? (
             <div className="flex items-center justify-between gap-3 border-t pt-2">
@@ -55,7 +62,7 @@ export function LeadEvidenceList({ evidence }: { evidence: LeadEvidence[] }) {
                 <ExternalLink className="size-3 shrink-0" />
                 <span className="truncate">{item.source_title || item.source_url}</span>
               </a>
-              {item.verified_date ? <span className="shrink-0 text-muted-foreground">{item.verified_date}</span> : null}
+              {(item.retrieved_at || item.verified_date) ? <span className="shrink-0 text-muted-foreground">Retrieved {new Date(item.retrieved_at || item.verified_date!).toLocaleDateString()}</span> : null}
             </div>
           ) : null}
         </li>

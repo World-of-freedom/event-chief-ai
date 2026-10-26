@@ -12,7 +12,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, StringConstraints, model_validator
 
-NeedCategory = Literal["cash", "cloud_credits", "prizes", "food", "merchandise", "other"]
+NeedCategory = Literal[
+    "cash", "cloud_credits", "equipment", "speakers", "mentors", "venue", "volunteers",
+    "prizes", "food", "merchandise", "other",
+]
 NeedPriority = Literal["low", "medium", "high"]
 NeedStatus = Literal["open", "in_progress", "partially_covered", "covered"]
 
@@ -21,6 +24,40 @@ Short80 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, 
 Location200 = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
 Currency = Annotated[str, StringConstraints(strip_whitespace=True, to_upper=True, pattern=r"^[A-Z]{3}$")]
 Attendees = Annotated[int, Field(ge=1, le=1_000_000)]
+Phone32 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=32)]
+RequirementText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4_000)]
+
+RESOURCE_TITLES: dict[str, str] = {
+    "cash": "Cash funding",
+    "cloud_credits": "Cloud & API credits",
+    "equipment": "Equipment",
+    "speakers": "Speakers",
+    "mentors": "Mentors",
+    "venue": "Venue",
+    "volunteers": "Volunteers",
+    "prizes": "Prizes",
+    "food": "Food & beverage",
+    "merchandise": "Merchandise",
+    "other": "Other requirement",
+}
+
+# Values in ``details`` are category-specific metadata. The familiar generic
+# amount and quantity columns remain useful for totals, offers and reporting.
+DETAILS_REQUIRED: dict[str, tuple[str, ...]] = {
+    "cash": ("funding_purpose",),
+    "cloud_credits": ("quantity",),
+    "equipment": ("equipment_type",),
+    "speakers": ("speaker_profile",),
+    "mentors": ("expertise_required",),
+    "venue": ("venue_type",),
+    "volunteers": ("volunteer_roles",),
+    "prizes": ("prize_type",),
+    "food": ("service_type",),
+    "merchandise": ("merchandise_type",),
+    "other": ("requirement_type",),
+}
+AMOUNT_REQUIRED = {"cash", "cloud_credits", "prizes"}
+QUANTITY_REQUIRED = {"equipment", "speakers", "mentors", "venue", "volunteers", "prizes", "food", "merchandise"}
 
 
 def _check_date_range(start: date | None, end: date | None) -> None:
@@ -42,6 +79,8 @@ class EventInput(BaseModel):
     website_url: HttpUrl | None = None
     organizer_name: Name160 | None = None
     organizer_email: EmailStr | None = None
+    organizer_phone: Phone32 | None = None
+    parent_event_id: UUID | None = None
 
     @model_validator(mode="after")
     def _valid_dates(self) -> EventInput:
@@ -65,6 +104,8 @@ class EventPatch(BaseModel):
     website_url: HttpUrl | None = None
     organizer_name: Name160 | None = None
     organizer_email: EmailStr | None = None
+    organizer_phone: Phone32 | None = None
+    parent_event_id: UUID | None = None
 
 
 class EventOut(BaseModel):
@@ -84,20 +125,35 @@ class EventOut(BaseModel):
     website_url: str | None
     organizer_name: str | None
     organizer_email: str | None
+    organizer_phone: str | None
+    parent_event_id: UUID | None
+    is_subevent: bool
     created_at: datetime
     updated_at: datetime
 
 
-def check_need_amounts(category: str, target_amount: Decimal | None) -> None:
-    """Cash needs require a positive target amount; in-kind needs may use quantity and/or value."""
-    if category == "cash" and (target_amount is None or target_amount <= 0):
-        raise ValueError("Cash needs require a target_amount greater than 0")
+def check_need_details(
+    category: str,
+    target_amount: Decimal | None,
+    target_quantity: int | None,
+    details: dict[str, str | int | float],
+) -> None:
+    """Ensure each resource category captures the information organizers need."""
+    if category in AMOUNT_REQUIRED and (target_amount is None or target_amount <= 0):
+        raise ValueError(f"{RESOURCE_TITLES[category]} requires an amount greater than 0")
+    if category in QUANTITY_REQUIRED and (target_quantity is None or target_quantity < 1):
+        raise ValueError(f"{RESOURCE_TITLES[category]} requires a quantity of at least 1")
+    for field in DETAILS_REQUIRED[category]:
+        value = details.get(field)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            raise ValueError(f"{field.replace('_', ' ')} is required for {RESOURCE_TITLES[category]}")
 
 
 class ResourceNeedInput(BaseModel):
     category: NeedCategory
-    title: Name160
-    description: str | None = None
+    title: Name160 | None = None
+    description: RequirementText
+    details: dict[str, str | int | float] = Field(default_factory=dict)
     target_amount: Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)] | None = None
     currency: Currency = "INR"
     target_quantity: Annotated[int, Field(ge=1)] | None = None
@@ -107,8 +163,10 @@ class ResourceNeedInput(BaseModel):
     notes: str | None = None
 
     @model_validator(mode="after")
-    def _cash_needs_amount(self) -> ResourceNeedInput:
-        check_need_amounts(self.category, self.target_amount)
+    def _valid_requirement(self) -> ResourceNeedInput:
+        check_need_details(self.category, self.target_amount, self.target_quantity, self.details)
+        if not self.title:
+            self.title = RESOURCE_TITLES[self.category]
         return self
 
 
@@ -117,7 +175,8 @@ class ResourceNeedPatch(BaseModel):
 
     category: NeedCategory | None = None
     title: Name160 | None = None
-    description: str | None = None
+    description: RequirementText | None = None
+    details: dict[str, str | int | float] | None = None
     target_amount: Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)] | None = None
     currency: Currency | None = None
     target_quantity: Annotated[int, Field(ge=1)] | None = None
@@ -135,6 +194,7 @@ class ResourceNeedOut(BaseModel):
     category: NeedCategory
     title: str
     description: str | None
+    details: dict[str, str | int | float]
     target_amount: Decimal | None
     currency: str
     target_quantity: int | None
@@ -144,6 +204,12 @@ class ResourceNeedOut(BaseModel):
     notes: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class EventCreateInput(EventInput):
+    """Event creation stays short while allowing optional in-context requirements."""
+
+    resource_needs: list[ResourceNeedInput] = Field(default_factory=list, max_length=25)
 
 
 class CashSummaryOut(BaseModel):

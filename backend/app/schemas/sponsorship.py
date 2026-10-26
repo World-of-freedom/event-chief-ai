@@ -262,6 +262,7 @@ class OfferOut(BaseModel):
 
 
 class TaskInput(BaseModel):
+    event_id: UUID | None = None
     title: Text200
     due_at: datetime | None = None
     description: str | None = None
@@ -276,10 +277,10 @@ class TaskPatch(BaseModel):
 
 class TaskOut(BaseModel):
     id: UUID
-    opportunity_id: UUID
+    opportunity_id: UUID | None
     event_id: UUID
     event_name: str
-    company_name: str
+    company_name: str | None
     title: str
     description: str | None
     due_at: datetime | None
@@ -313,7 +314,16 @@ class EmailDraftInput(BaseModel):
     body: str | None = None
 
 
+class ManualInteractionInput(BaseModel):
+    direction: Literal["outbound", "inbound"] = "outbound"
+    message_type: Literal["initial", "follow_up", "proposal", "reply", "other"] = "other"
+    subject: str | None = Field(default=None, max_length=200)
+    body: str = Field(min_length=1)
+    recipient: EmailStr | None = None
+    follow_up_title: Text200 | None = None
+    follow_up_due_at: datetime | None = None
+
+
 class CallReviewInput(BaseModel):
     extracted_fields: dict[str, Any] = Field(default_factory=dict)
     review_status: Literal["reviewed", "corrected"]
-

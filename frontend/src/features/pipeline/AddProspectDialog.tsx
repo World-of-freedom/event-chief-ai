@@ -25,7 +25,6 @@ export function AddProspectDialog({ events, defaultEventId }: { events: EventRec
     resolver: zodResolver(prospectSchema),
     defaultValues: emptyProspect,
   });
-
   useEffect(() => {
     if (open) {
       reset(emptyProspect);

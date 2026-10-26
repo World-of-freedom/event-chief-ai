@@ -21,12 +21,15 @@ logger = logging.getLogger(__name__)
 class ContactInfo(BaseModel):
     name: str | None = Field(default=None, description="Contact person name if explicitly mentioned in text")
     role: str | None = Field(default=None, description="Contact person's role or designation")
-    email: str | None = Field(default=None, description="Verified public email found in source")
-    phone: str | None = Field(default=None, description="Verified public phone number found in source")
+    email: str | None = Field(default=None, description="Public email literally present in this source; otherwise null")
+    phone: str | None = Field(default=None, description="Public phone number literally present in this source; otherwise null")
     linkedin_url: str | None = Field(default=None, description="Company or person LinkedIn page URL")
     twitter_url: str | None = Field(default=None, description="Twitter / X profile URL")
     instagram_url: str | None = Field(default=None, description="Instagram profile URL")
     sponsorship_page_url: str | None = Field(default=None, description="Direct URL to sponsorship, partnership, or community page")
+    email_source_excerpt: str | None = Field(default=None, description="Exact short text containing the extracted email")
+    phone_source_excerpt: str | None = Field(default=None, description="Exact short text containing the extracted phone")
+    contact_route_source_excerpt: str | None = Field(default=None, description="Exact short text supporting the contact/sponsorship route")
 
 
 class ExtractedEvidence(BaseModel):
@@ -37,6 +40,7 @@ class ExtractedEvidence(BaseModel):
     )
     source_url: str = Field(description="URL from which this evidence was extracted")
     source_title: str | None = Field(default=None, description="Webpage or document title")
+    source_excerpt: str | None = Field(default=None, description="Exact supporting text from the source, at most 600 characters")
     is_llm_inferred: bool = Field(
         default=False,
         description="True only if reasonable inference rather than exact quote",
@@ -63,6 +67,8 @@ ABSOLUTE REQUIREMENTS:
 3. If information is not in the text, leave it as null/empty.
 4. For 'official_website', extract the company's real home domain if visible or referenced in the URL/snippet.
 5. If the snippet mentions a brand sponsoring, partnering, or offering grants/credits/products to events, record it in 'evidence'.
+6. Every evidence item MUST include the exact supporting excerpt from the supplied text. Do not paraphrase it as a quote.
+7. An email, phone, or contact route may be returned only when it appears in the supplied text or source URL. Include its exact excerpt.
 """
 
 EXTRACTOR_HUMAN_PROMPT = """Extract company information from this search result:
@@ -113,12 +119,15 @@ async def extract_company_from_snippet(
         if not record.company_name or len(record.company_name.strip()) < 2:
             return None
 
-        # Ensure source_url is populated on all evidence items
+        # The model only sees this source, so preserve it as the evidence and
+        # contact provenance rather than guessing a separate page.
         for ev in record.evidence:
             if not ev.source_url:
                 ev.source_url = url
             if not ev.source_title:
                 ev.source_title = title
+            if not ev.source_excerpt:
+                ev.source_excerpt = content[:600]
 
         return record
 

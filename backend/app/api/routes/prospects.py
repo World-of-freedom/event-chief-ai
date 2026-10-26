@@ -75,12 +75,8 @@ def _mark_prospect_opted_out(prospect: Prospect, reason: str | None) -> None:
         prospect.opt_out_reason = reason
 
 
-def _create_opportunity(
-    db: Session, user: CurrentUser, event: Event, prospect: Prospect, notes: str | None
-) -> Opportunity:
-    existing = db.scalar(
-        select(Opportunity).where(Opportunity.event_id == event.id, Opportunity.prospect_id == prospect.id)
-    )
+def _create_opportunity(db: Session, user: CurrentUser, event: Event, prospect: Prospect, notes: str | None) -> Opportunity:
+    existing = db.scalar(select(Opportunity).where(Opportunity.event_id == event.id, Opportunity.prospect_id == prospect.id))
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -88,7 +84,12 @@ def _create_opportunity(
             headers={"X-Existing-Opportunity-Id": str(existing.id)},
         )
     initial = OpportunityStatusEnum.OPTED_OUT if prospect.opted_out else OpportunityStatusEnum.PROSPECT_FOUND
-    opportunity = Opportunity(event_id=event.id, prospect_id=prospect.id, status=initial, organizer_notes=notes)
+    opportunity = Opportunity(
+        event_id=event.id,
+        prospect_id=prospect.id,
+        status=initial,
+        organizer_notes=notes,
+    )
     db.add(opportunity)
     db.flush()
     db.add(
@@ -166,7 +167,7 @@ def _detail(db: Session, opportunity_id: UUID, user: CurrentUser) -> Opportunity
         outreach_blocked=opportunity.prospect.opted_out or opportunity.status in OUTREACH_BLOCKED_STATUSES,
         status_history=sorted(opportunity.status_history, key=lambda h: h.created_at, reverse=True),
         offers=[offer_out(o) for o in sorted(opportunity.offers, key=lambda o: o.created_at, reverse=True)],
-        tasks=[task_out(t, opportunity, now) for t in sorted(opportunity.tasks, key=lambda t: t.created_at, reverse=True)],
+        tasks=[task_out(t, now, opportunity) for t in sorted(opportunity.tasks, key=lambda t: t.created_at, reverse=True)],
         messages=sorted(opportunity.messages, key=lambda m: m.created_at, reverse=True),
         calls=sorted(opportunity.calls, key=lambda c: c.created_at, reverse=True),
     )
@@ -318,6 +319,8 @@ def create_opportunity_from_lead(
         prospect = Prospect(owner_id=user.uuid, **prospect_fields_from_lead(lead, lead.job))
         db.add(prospect)
         db.flush()
+    if lead.job.event_id and lead.job.event_id != event.id:
+        raise HTTPException(status_code=422, detail="This lead was researched for a different event.")
     opportunity = _create_opportunity(db, user, event, prospect, body.organizer_notes)
     return _detail(db, opportunity.id, user)
 

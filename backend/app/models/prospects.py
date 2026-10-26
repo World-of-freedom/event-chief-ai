@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -41,7 +41,6 @@ class Prospect(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class Opportunity(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "opportunities"
-    __table_args__ = (UniqueConstraint("event_id", "prospect_id", name="opportunities_event_prospect"),)
 
     event_id: Mapped[UUID] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
     prospect_id: Mapped[UUID] = mapped_column(ForeignKey("prospects.id", ondelete="RESTRICT"), nullable=False, index=True)

@@ -10,6 +10,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusPill } from "@/components/StatusPill";
 import { NoEventsState } from "@/features/events/NoEventsState";
 import { TaskActions } from "@/features/tasks/TaskActions";
+import { NewEventTaskDialog } from "@/features/tasks/TaskDialogs";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -54,7 +56,7 @@ export function FollowUpsPage() {
 
   return (
     <>
-      <PageHeader title="Follow-ups" description="Reminders linked to sponsors. Overdue ones are flagged so nothing slips." />
+      <PageHeader title="Tasks & follow-ups" description="Organizer-controlled work across events and sponsor opportunities. Overdue items are flagged so nothing slips." actions={events.length ? <NewEventTaskDialog events={events} trigger={<Button>New task</Button>} /> : null} />
 
       {eventsQuery.error ? <ErrorAlert message={errorMessage(eventsQuery.error, "Could not load events.")} /> : null}
       {tasksQuery.error ? <ErrorAlert message={errorMessage(tasksQuery.error, "Could not load follow-ups.")} /> : null}
@@ -86,7 +88,7 @@ export function FollowUpsPage() {
             <EmptyState
               icon={<ClipboardCheck />}
               title={view === "overdue" ? "Nothing overdue" : "No follow-ups here"}
-              description="Add follow-ups from a sponsor's page in the pipeline."
+              description="Create a task here, or add a sponsor follow-up from an opportunity."
             />
           ) : (
             <Card className="py-0">
@@ -105,12 +107,10 @@ export function FollowUpsPage() {
                     <TableRow key={task.id}>
                       <TableCell className="pl-4">
                         <div className="font-medium">{task.title}</div>
-                        <Link to={`/pipeline/${task.opportunity_id}`} className="text-xs text-muted-foreground hover:underline md:hidden">
-                          {task.company_name}
-                        </Link>
+                        {task.opportunity_id ? <Link to={`/pipeline/${task.opportunity_id}`} className="text-xs text-muted-foreground hover:underline md:hidden">{task.company_name}</Link> : <div className="text-xs text-muted-foreground">{task.event_name}</div>}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        <Link to={`/pipeline/${task.opportunity_id}`} className="hover:underline">{task.company_name}</Link>
+                        {task.opportunity_id ? <Link to={`/pipeline/${task.opportunity_id}`} className="hover:underline">{task.company_name}</Link> : <span className="text-muted-foreground">Event task</span>}
                         <div className="text-xs text-muted-foreground">{task.event_name}</div>
                       </TableCell>
                       <TableCell className={task.is_overdue ? "whitespace-nowrap font-medium text-destructive" : "whitespace-nowrap text-muted-foreground"}>

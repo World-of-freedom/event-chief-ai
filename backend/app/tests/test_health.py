@@ -3,11 +3,11 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_health_endpoint_describes_boilerplate_mode() -> None:
+def test_health_endpoint_describes_sponsorship_mvp_mode() -> None:
     response = TestClient(app).get("/health")
 
     assert response.status_code == 200
-    assert response.json()["mode"] == "boilerplate"
+    assert response.json()["mode"] == "sponsorship-mvp"
 
 
 def test_feature_route_is_declared_in_openapi() -> None:

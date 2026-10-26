@@ -34,7 +34,7 @@ function useRefreshOffers(opportunityId: string, eventId: string) {
 }
 
 const offerSchema = z.object({
-  support_type: z.enum(["cash", "cloud_credits", "prizes", "food", "merchandise", "other"]),
+  support_type: z.enum(["cash", "cloud_credits", "equipment", "speakers", "mentors", "venue", "volunteers", "prizes", "food", "merchandise", "other"]),
   resource_need_id: z.string(),
   // Unknown amounts stay empty; they are never turned into 0.
   stated_value: z.string().trim().refine((v) => v === "" || money.test(v), "Enter an amount like 50000"),
