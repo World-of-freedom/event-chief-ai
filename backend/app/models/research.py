@@ -16,6 +16,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -24,6 +25,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     Column,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -47,6 +49,7 @@ research_job_resource_needs = Table(
     Base.metadata,
     Column("research_job_id", ForeignKey("research_jobs.id", ondelete="CASCADE"), primary_key=True),
     Column("resource_need_id", ForeignKey("resource_needs.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_research_job_resource_needs_resource_need_id", "resource_need_id"),
 )
 
 
@@ -60,6 +63,7 @@ class ResearchJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         String(PUBLIC_ID_LENGTH),
         nullable=False,
         unique=True,
+        index=True,  # unique index ix_research_jobs_public_id
         default=generate_public_id,
     )
 
@@ -272,7 +276,9 @@ class LeadContact(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     basic_check_results: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     display_status: Mapped[str] = mapped_column(String(80), nullable=False, server_default="needs_review")
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retrieved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("timezone('utc', now())")
+    )
 
     lead: Mapped[SponsorLead] = relationship("SponsorLead", back_populates="contacts")
     verifications: Mapped[list[LeadContactVerification]] = relationship(

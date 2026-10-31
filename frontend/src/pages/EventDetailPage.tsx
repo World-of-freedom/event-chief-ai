@@ -34,7 +34,7 @@ export function EventDetailPage() {
   const securedSponsorCount = (dashboardQuery.data?.opportunities_by_status.accepted ?? 0) + (dashboardQuery.data?.opportunities_by_status.fulfilled ?? 0);
 
   return <>
-    <PageHeader title={event.name} description={`${event.institution} · ${formatDate(event.start_date)}${event.end_date && event.end_date !== event.start_date ? ` – ${formatDate(event.end_date)}` : ""}`} actions={<><Button asChild variant="outline"><Link to="/events"><ArrowLeft />Events</Link></Button><EventFormDialog event={event} trigger={<Button variant="outline"><Pencil />Edit event</Button>} /></>} />
+    <PageHeader title={event.name} description={`${event.institution} · ${formatDate(event.start_date)}${event.end_date && event.end_date !== event.start_date ? ` – ${formatDate(event.end_date)}` : ""}`} actions={<><Button asChild variant="outline"><Link to="/events"><ArrowLeft />Back</Link></Button><EventFormDialog event={event} trigger={<Button variant="outline"><Pencil />Edit event</Button>} /></>} />
     {parent ? <Link to={`/events/${parent.id}`} className="mb-5 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><span>Part of {parent.name}</span><ChevronRight className="size-4" /><span>Back to parent</span></Link> : null}
     <div className="mb-6"><Button asChild size="sm"><Link to={`/discovery/new?event=${event.id}`}><Search />Research sponsors</Link></Button></div>
     {needsQuery.error || allEventsQuery.error || dashboardQuery.error ? <ErrorAlert message={errorMessage(needsQuery.error || allEventsQuery.error || dashboardQuery.error, "Could not load event details.")} /> : null}

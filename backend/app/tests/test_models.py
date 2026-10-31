@@ -60,3 +60,26 @@ def test_event_hierarchy_is_available_on_every_full_event_record() -> None:
     assert "sub_event_id" not in ResearchJob.__table__.c
     assert FollowUpTask.__table__.c.event_id.nullable is False
     assert FollowUpTask.__table__.c.opportunity_id.nullable is True
+
+
+def test_opportunity_model_keeps_one_prospect_per_event() -> None:
+    from app.models.prospects import Opportunity
+
+    names = {constraint.name for constraint in Opportunity.__table__.constraints}
+    assert "opportunities_event_prospect" in names
+
+
+def test_offer_support_types_match_resource_categories() -> None:
+    import typing
+
+    from app.models.enums import ResourceCategory
+    from app.schemas.sponsorship import SupportType
+
+    assert set(typing.get_args(SupportType)) == {category.value for category in ResourceCategory}
+
+
+def test_call_status_values_fit_the_database_column() -> None:
+    from app.models.enums import CallStatus
+
+    # calls.status is VARCHAR(18) since migration 20261031_11.
+    assert max(len(status.value) for status in CallStatus) <= 18

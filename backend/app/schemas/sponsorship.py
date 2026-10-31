@@ -14,7 +14,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import phonenumbers
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, StringConstraints, field_validator
 
-SupportType = Literal["cash", "cloud_credits", "prizes", "food", "merchandise", "other"]
+# Must match ResourceCategory (models/enums.py) and the DB check constraint from migration 20261025_06.
+SupportType = Literal[
+    "cash", "cloud_credits", "equipment", "speakers", "mentors", "venue", "volunteers",
+    "prizes", "food", "merchandise", "other",
+]
 OpportunityStatus = Literal[
     "prospect_found", "outreach_approved", "contact_attempted", "interested",
     "proposal_requested", "proposal_sent", "offer_received", "accepted", "fulfilled",

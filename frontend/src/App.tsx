@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { AuthPage } from "@/auth/AuthPage";
 import { AdminPage } from "@/pages/AdminPage";
@@ -15,7 +15,6 @@ import { OpportunityPage } from "@/pages/OpportunityPage";
 import { PipelinePage } from "@/pages/PipelinePage";
 import { ProspectDetailPage } from "@/pages/ProspectDetailPage";
 import { SponsorDiscoveryPage } from "@/pages/SponsorDiscoveryPage";
-import { TemplateFeaturePage } from "@/pages/TemplateFeaturePage";
 import { VoiceCallDetailPage } from "@/pages/VoiceCallDetailPage";
 import { VoicePreferencesPage } from "@/pages/VoicePreferencesPage";
 
@@ -44,7 +43,8 @@ function ProtectedWorkspace() {
           <Route path="/pipeline/:opportunityId" element={<OpportunityPage />} />
           <Route path="/follow-ups" element={<FollowUpsPage />} />
           <Route path="/admin" element={<AdminPage />} />
-          <Route path="/outreach/:opportunityId" element={<TemplateFeaturePage title="Outreach composer" description="An explicit approval gate will be required before messages can be sent." todo="TODO: wire editable drafts, approval records, and a Resend adapter." />} />
+          {/* Email outreach lives on the opportunity page; keep old links working. */}
+          <Route path="/outreach/:opportunityId" element={<OutreachRedirect />} />
           <Route path="/calls/:callId" element={<VoiceCallDetailPage />} />
           <Route path="/settings/voice-ai" element={<VoicePreferencesPage />} />
           <Route path="*" element={<NotFoundPage />} />
@@ -52,4 +52,9 @@ function ProtectedWorkspace() {
       </AppShell>
     </ProtectedRoute>
   );
+}
+
+function OutreachRedirect() {
+  const { opportunityId } = useParams<{ opportunityId: string }>();
+  return <Navigate to={`/pipeline/${opportunityId}`} replace />;
 }

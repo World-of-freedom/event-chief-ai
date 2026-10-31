@@ -19,7 +19,8 @@ function Progress({
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
         className="size-full flex-1 bg-primary transition-all"
-        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+        // Clamp to 0–100 so a NaN or out-of-range value can't overflow or hide the bar.
+        style={{ transform: `translateX(-${100 - Math.min(100, Math.max(0, Number(value) || 0))}%)` }}
       />
     </ProgressPrimitive.Root>
   )

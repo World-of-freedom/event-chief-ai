@@ -31,18 +31,21 @@ def _attempt_status(call_status: CallStatus) -> CallAttemptStatus:
     return CallAttemptStatus.SUBMITTED
 
 
-@router.post("/bolna")
-async def bolna_webhook(
-    request: Request,
-    db: Session = Depends(get_db_session),
-    settings: Settings = Depends(get_settings),
-) -> dict[str, str]:
+def require_bolna_token(request: Request, settings: Settings = Depends(get_settings)) -> None:
+    """Reject unauthenticated calls before a database session is opened."""
     expected = settings.bolna_webhook_secret
     supplied = request.headers.get("X-Bolna-Webhook-Token", "")
     if not expected:
         raise HTTPException(status_code=503, detail="Bolna webhook is not configured.")
     if not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="Invalid Bolna webhook token.")
+
+
+@router.post("/bolna", dependencies=[Depends(require_bolna_token)])
+async def bolna_webhook(
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> dict[str, str]:
     try:
         payload = await request.json()
     except ValueError as exc:

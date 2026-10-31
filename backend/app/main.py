@@ -26,7 +26,7 @@ def create_app() -> FastAPI:
         allow_origins=[settings.frontend_origin],
         allow_origin_regex=local_dev_origin_regex,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],  # PUT: /voice-preferences
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
     app.include_router(health_router)

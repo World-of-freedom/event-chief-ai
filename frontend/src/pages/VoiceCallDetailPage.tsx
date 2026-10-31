@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, FileText, Headphones, PhoneCall } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, FileText, Headphones, PhoneCall } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -10,9 +10,14 @@ import { LoadingState } from "@/components/LoadingState";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusPill } from "@/components/StatusPill";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cancelVoiceCall, getVoiceCall, getVoiceCallRecording } from "@/lib/api/sponsorship";
-import { formatDateTime, voiceCallStatusLabels, voiceCallTone } from "@/lib/format";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { cancelVoiceCall, getVoiceCall, getVoiceCallRecording, reviewVoiceCall } from "@/lib/api/sponsorship";
+import type { VoiceCall } from "@/types/sponsorship";
+import { callAttemptStatusLabels, formatDateTime, voiceCallStatusLabels, voiceCallTone } from "@/lib/format";
 
 export function VoiceCallDetailPage() {
   const { callId } = useParams<{ callId: string }>();
@@ -30,7 +35,10 @@ export function VoiceCallDetailPage() {
     onError: (error) => toast.error(errorMessage(error)),
   });
 
-  const back = <Button asChild variant="outline"><Link to="/pipeline"><ArrowLeft />Back to pipeline</Link></Button>;
+  // Header: plain "Back" to the call's opportunity; not-found screen: "Back to pipeline".
+  const back = query.data
+    ? <Button asChild variant="outline"><Link to={`/pipeline/${query.data.opportunity_id}`}><ArrowLeft />Back</Link></Button>
+    : <Button asChild variant="outline"><Link to="/pipeline"><ArrowLeft />Back to pipeline</Link></Button>;
   if (query.isLoading) return <LoadingState label="Loading voice call…" />;
   if (query.error || !query.data) return <EmptyState icon={<PhoneCall />} title="Voice call not found" description={query.error ? errorMessage(query.error) : "This call does not exist or isn't yours."} action={back} />;
 
@@ -61,7 +69,7 @@ export function VoiceCallDetailPage() {
           <CardContent>
             {call.attempts.length === 0 ? <p className="text-sm text-muted-foreground">The worker has not started an attempt yet.</p> : (
               <ul className="divide-y">
-                {call.attempts.map((attempt) => <li key={attempt.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0 text-sm"><span>Attempt {attempt.attempt_number}</span><span className="text-muted-foreground">{attempt.status}{attempt.error_message ? ` · ${attempt.error_message}` : ""}</span></li>)}
+                {call.attempts.map((attempt) => <li key={attempt.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0 text-sm"><span>Attempt {attempt.attempt_number}</span><span className="text-muted-foreground">{callAttemptStatusLabels[attempt.status] || attempt.status}{attempt.error_message ? ` · ${attempt.error_message}` : ""}</span></li>)}
               </ul>
             )}
           </CardContent>
@@ -77,8 +85,97 @@ export function VoiceCallDetailPage() {
             {call.transcript_text ? <section><p className="mb-2 flex items-center gap-2 font-medium"><FileText className="size-4 text-primary" />Transcript</p><pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 font-sans text-sm leading-relaxed text-muted-foreground">{call.transcript_text}</pre></section> : <ResultUnavailable icon={<FileText />} label="Transcript" message="No transcript was returned by Bolna for this call." />}
           </CardContent>
         </Card>
+        <CallReviewCard call={call} />
       </div>
     </>
+  );
+}
+
+const reviewableStatuses = ["completed", "no_answer", "failed"];
+const reviewLabels: Record<string, string> = { needs_review: "Needs review", reviewed: "Reviewed", corrected: "Corrected" };
+
+/** Edit the values Bolna extracted from the call and record the organizer's review. */
+function CallReviewCard({ call }: { call: VoiceCall }) {
+  const queryClient = useQueryClient();
+  const toText = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value, null, 2));
+  const original = Object.fromEntries(Object.entries(call.extracted_fields ?? {}).map(([key, value]) => [key, toText(value)]));
+  const [values, setValues] = useState<Record<string, string>>(original);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValues(Object.fromEntries(Object.entries(call.extracted_fields ?? {}).map(([key, value]) => [key, toText(value)])));
+  }, [call.extracted_fields]);
+
+  const changed = Object.keys(values).some((key) => values[key] !== original[key]);
+  const mutation = useMutation({
+    mutationFn: () => {
+      // Non-text values (lists, objects, numbers) are edited as JSON and parsed back.
+      const parsed: Record<string, unknown> = {};
+      for (const [key, raw] of Object.entries(values)) {
+        if (typeof call.extracted_fields[key] === "string") parsed[key] = raw;
+        else {
+          try {
+            parsed[key] = JSON.parse(raw);
+          } catch {
+            throw new Error(`“${key.replace(/_/g, " ")}” is not valid JSON.`);
+          }
+        }
+      }
+      return reviewVoiceCall(call.id, { extracted_fields: parsed, review_status: changed ? "corrected" : "reviewed" });
+    },
+    onMutate: () => setError(null),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["voice-call", call.id], updated);
+      void queryClient.invalidateQueries({ queryKey: ["opportunity", call.opportunity_id] });
+      toast.success(changed ? "Corrections saved" : "Call marked as reviewed");
+    },
+    onError: (err) => setError(errorMessage(err)),
+  });
+
+  const keys = Object.keys(values);
+  const canReview = reviewableStatuses.includes(call.status);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><ClipboardCheck className="size-4 text-primary" />Review</CardTitle>
+        <CardDescription>Details extracted by the voice agent stay unconfirmed until you review them.</CardDescription>
+        <CardAction>
+          <StatusPill tone={call.review_status === "needs_review" ? "warning" : "success"}>{reviewLabels[call.review_status] || call.review_status}</StatusPill>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!canReview ? (
+          <p className="text-sm text-muted-foreground">You can review this call once it has finished.</p>
+        ) : (
+          <>
+            {keys.length === 0 ? (
+              <p className="text-sm text-muted-foreground">The agent didn't extract any details from this call.</p>
+            ) : (
+              keys.map((key) => {
+                const multiline = typeof call.extracted_fields[key] !== "string" || values[key].length > 80;
+                const id = `extracted-${key}`;
+                return (
+                  <Field key={key}>
+                    <FieldLabel htmlFor={id} className="capitalize">{key.replace(/_/g, " ")}</FieldLabel>
+                    {multiline ? (
+                      <Textarea id={id} rows={3} className="font-mono text-xs" value={values[key]} onChange={(e) => setValues({ ...values, [key]: e.target.value })} />
+                    ) : (
+                      <Input id={id} value={values[key]} onChange={(e) => setValues({ ...values, [key]: e.target.value })} />
+                    )}
+                  </Field>
+                );
+              })
+            )}
+            {error ? <ErrorAlert message={error} /> : null}
+            <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+              {mutation.isPending ? <Spinner /> : null}
+              {changed ? "Save corrections" : "Mark as reviewed"}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
