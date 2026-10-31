@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, Time, UniqueConstraint, Uuid, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, Time, UniqueConstraint, Uuid, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,7 +33,7 @@ class OutreachMessage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[MessageStatus] = mapped_column(db_enum(MessageStatus, "message_status"), nullable=False, default=MessageStatus.DRAFT, server_default="draft")
     approved_by: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("auth.users.id"))
-    approved_at: Mapped[datetime | None] = mapped_column()
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     provider_message_id: Mapped[str | None] = mapped_column(String(255))
     send_idempotency_key: Mapped[UUID] = mapped_column(nullable=False, server_default=text("gen_random_uuid()"))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -44,6 +44,8 @@ class OutreachMessage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
 
 class Call(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "calls"
+    # The worker polls by status + next_attempt_at (migration 20261031_10).
+    __table_args__ = (Index("ix_calls_status_next_attempt_at", "status", "next_attempt_at"),)
 
     opportunity_id: Mapped[UUID] = mapped_column(ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True)
     recipient_phone: Mapped[str | None] = mapped_column(String(32))
@@ -61,7 +63,7 @@ class Call(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     consent_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     instructions: Mapped[str | None] = mapped_column(Text)
     context_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
-    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3, server_default="3")
@@ -77,7 +79,11 @@ class Call(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class CallAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "call_attempts"
-    __table_args__ = (UniqueConstraint("call_id", "attempt_number", name="call_attempts_call_attempt_number"),)
+    __table_args__ = (
+        UniqueConstraint("call_id", "attempt_number", name="call_attempts_call_attempt_number"),
+        UniqueConstraint("bolna_call_id", name="call_attempts_bolna_call_id"),
+        UniqueConstraint("request_token", name="call_attempts_request_token"),
+    )
 
     call_id: Mapped[UUID] = mapped_column(ForeignKey("calls.id", ondelete="CASCADE"), nullable=False, index=True)
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -87,8 +93,8 @@ class CallAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=CallAttemptStatus.CLAIMED,
         server_default="claimed",
     )
-    bolna_call_id: Mapped[str | None] = mapped_column(String(255), unique=True)
-    request_token: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    bolna_call_id: Mapped[str | None] = mapped_column(String(255))
+    request_token: Mapped[str] = mapped_column(String(255), nullable=False)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

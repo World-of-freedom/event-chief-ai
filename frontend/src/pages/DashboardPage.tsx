@@ -22,6 +22,7 @@ import {
   opportunityStatusLabels,
   opportunityStatusOrder,
   opportunityTone,
+  voiceCallStatusLabels,
 } from "@/lib/format";
 import type { Dashboard } from "@/types/sponsorship";
 
@@ -164,7 +165,7 @@ export function DashboardPage() {
                     {data.recent_calls.map((call) => (
                       <li key={call.id} className="flex justify-between gap-3 py-2">
                         <Link to={`/pipeline/${call.opportunity_id}`} className="font-medium hover:underline">{call.company_name}</Link>
-                        <span className="text-muted-foreground">{call.status} · {formatDateTime(call.created_at)}</span>
+                        <span className="text-muted-foreground">{voiceCallStatusLabels[call.status] || call.status} · {formatDateTime(call.created_at)}</span>
                       </li>
                     ))}
                   </ul>

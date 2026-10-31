@@ -127,6 +127,34 @@ export const voiceCallStatusLabels: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+export const callAttemptStatusLabels: Record<string, string> = {
+  claimed: "Claimed by worker",
+  submitting: "Submitting",
+  submitted: "Submitted",
+  in_progress: "In progress",
+  completed: "Completed",
+  failed: "Failed",
+  submission_unknown: "Outcome unknown",
+};
+
+export const messageStatusLabels: Record<string, string> = {
+  draft: "Draft",
+  approved: "Approved",
+  sending: "Sending",
+  sent: "Sent",
+  delivered: "Delivered",
+  failed: "Failed",
+  received: "Received",
+};
+
+export function messageTone(status: string): Tone {
+  if (status === "sent" || status === "delivered") return "success";
+  if (status === "failed") return "danger";
+  if (status === "draft") return "neutral";
+  if (status === "approved") return "brand";
+  return "info";
+}
+
 export function voiceCallTone(status: string): Tone {
   if (status === "completed") return "success";
   if (status === "failed" || status === "blocked" || status === "submission_unknown") return "danger";

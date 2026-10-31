@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import CurrentUser, get_current_user
@@ -233,8 +233,22 @@ def send_email(
         else message.recipient
     )
 
-    message.status = MessageStatus.SENDING
+    # Claim the draft atomically so two clicks/tabs can't both send it (plan section 4.4).
+    claimed = db.execute(
+        update(OutreachMessage)
+        .where(
+            OutreachMessage.id == message.id,
+            OutreachMessage.status.in_([MessageStatus.APPROVED, MessageStatus.FAILED]),
+        )
+        .values(status=MessageStatus.SENDING)
+    ).rowcount
     db.commit()
+    if not claimed:
+        db.refresh(message)
+        if message.status in (MessageStatus.SENT, MessageStatus.DELIVERED):
+            return message
+        raise HTTPException(status_code=409, detail="This email is already being sent.")
+    db.refresh(message)
     try:
         if settings.email_provider == "gmail":
             provider_id = send_with_gmail(
@@ -249,7 +263,7 @@ def send_email(
             provider_id = send_with_resend(
                 api_key=settings.resend_api_key or "",
                 sender=settings.resend_from_email or "",
-                recipient=message.recipient,
+                recipient=recipient,
                 subject=message.subject,
                 body=message.body,
                 idempotency_key=str(message.send_idempotency_key),

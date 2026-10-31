@@ -54,6 +54,9 @@ export const updateOpportunity = (
   id: string,
   input: { status?: OpportunityStatus; status_reason?: string | null; organizer_notes?: string | null; next_action?: string | null; next_action_due_at?: string | null },
 ) => apiClient<OpportunityDetail>(`/opportunities/${id}`, json("PATCH", input));
+export const listProspects = (filters: { q?: string } = {}) => apiClient<Prospect[]>(`/prospects${query(filters)}`);
+export const createOpportunity = (eventId: string, prospectId: string) =>
+  apiClient<OpportunityDetail>(`/events/${eventId}/opportunities`, json("POST", { prospect_id: prospectId }));
 export const createOpportunityWithProspect = (eventId: string, prospect: ProspectInput, organizerNotes?: string) =>
   apiClient<OpportunityDetail>(`/events/${eventId}/opportunities/with-prospect`, json("POST", { prospect, organizer_notes: organizerNotes || null }));
 export const createOpportunityFromLead = (eventId: string, leadId: string) =>
@@ -99,6 +102,8 @@ export const approveVoiceCall = (opportunityId: string, input: { instructions?: 
 export const getVoiceCall = (callId: string) => apiClient<VoiceCall>(`/calls/${callId}`);
 export const getVoiceCallRecording = (callId: string) => apiBlob(`/calls/${callId}/recording`);
 export const cancelVoiceCall = (callId: string) => apiClient<VoiceCall>(`/calls/${callId}/cancel`, json("POST", {}));
+export const reviewVoiceCall = (callId: string, input: { extracted_fields: Record<string, unknown>; review_status: "reviewed" | "corrected" }) =>
+  apiClient<VoiceCall>(`/calls/${callId}/review`, json("POST", input));
 export const getVoiceCallPreferences = () => apiClient<VoiceCallPreferences>("/voice-preferences");
 export const saveVoiceCallPreferences = (input: Omit<VoiceCallPreferences, "updated_at">) =>
   apiClient<VoiceCallPreferences>("/voice-preferences", json("PUT", input));

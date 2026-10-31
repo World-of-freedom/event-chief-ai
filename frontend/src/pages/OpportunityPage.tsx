@@ -29,6 +29,8 @@ import {
   formatDateTime,
   formatMoney,
   fromDateTimeLocal,
+  messageStatusLabels,
+  messageTone,
   needCategoryLabels,
   offerStatusLabels,
   offerTone,
@@ -431,7 +433,8 @@ function ActivityCard({
     mutationFn: sendEmail,
     onMutate: (messageId) => setSendingMessageId(messageId),
     onSuccess: () => { refresh(); toast.success("Email sent"); },
-    onError: () => toast.error("Email delivery failed. You can retry the email."),
+    // The backend may have marked the email failed; refresh so "Retry send" and the reason appear.
+    onError: (error) => { refresh(); toast.error(errorMessage(error, "Email delivery failed. You can retry the email.")); },
     onSettled: () => setSendingMessageId(null),
   });
   const deleteDraft = useMutation({ mutationFn: deleteEmailDraft, onSuccess: () => { setEmailDialogOpen(false); setEditingDraft(null); refresh(); toast.success("Email draft deleted"); }, onError: (error) => toast.error(errorMessage(error)) });
@@ -499,9 +502,12 @@ function ActivityCard({
                     <div className="min-w-0">
                       <p className="truncate font-medium">{message.subject || message.message_type}</p>
                       <p className="truncate text-xs text-muted-foreground">To {message.recipient || "No recipient"}</p>
+                      {message.status === "failed" && message.error_message ? (
+                        <p className="mt-1 text-xs break-words text-destructive">{message.error_message}</p>
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
-                      <StatusPill tone={message.status === "sent" ? "success" : message.status === "draft" ? "neutral" : message.status === "failed" ? "danger" : "info"}>{message.status}</StatusPill>
+                      <StatusPill tone={messageTone(message.status)}>{messageStatusLabels[message.status] || message.status}</StatusPill>
                       <Button size="xs" variant="outline" onClick={() => { setEditingDraft(message); setEmailDialogOpen(true); }}>
                         {message.status === "draft" ? "View & edit" : "View email"}
                       </Button>
