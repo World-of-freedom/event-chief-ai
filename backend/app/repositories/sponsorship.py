@@ -5,10 +5,10 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.events import Event, ResourceNeed
-from app.models.outreach import FollowUpTask, Offer
+from app.models.outreach import Call, FollowUpTask, Offer
 from app.models.prospects import Opportunity, Prospect
 
 
@@ -55,4 +55,18 @@ def get_owned_task(db: Session, owner_id: UUID, task_id: UUID) -> FollowUpTask |
             joinedload(FollowUpTask.opportunity).joinedload(Opportunity.prospect),
         )
         .where(FollowUpTask.id == task_id, Event.owner_id == owner_id, FollowUpTask.owner_id == owner_id)
+    )
+
+
+def get_owned_call(db: Session, owner_id: UUID, call_id: UUID) -> Call | None:
+    return db.scalar(
+        select(Call)
+        .join(Opportunity, Call.opportunity_id == Opportunity.id)
+        .join(Event, Opportunity.event_id == Event.id)
+        .options(
+            joinedload(Call.opportunity).joinedload(Opportunity.event),
+            joinedload(Call.opportunity).joinedload(Opportunity.prospect),
+            selectinload(Call.attempts),
+        )
+        .where(Call.id == call_id, Event.owner_id == owner_id)
     )

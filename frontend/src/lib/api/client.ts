@@ -77,3 +77,30 @@ export async function apiClient<T>(
 
   return response.json() as Promise<T>;
 }
+
+/** Retrieve a non-JSON API response while applying the same authenticated request setup. */
+export async function apiBlob(endpoint: string): Promise<Blob> {
+  const headers = new Headers();
+  if (supabase) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+    } catch {
+      // The request will return the API's normal unauthorized response.
+    }
+  }
+  const url = `${API_BASE_URL.replace(/\/$/, "")}/${endpoint.replace(/^\//, "")}`;
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const data = await response.json();
+      if (data?.detail) message = formatErrorDetail(data.detail);
+    } catch {
+      message = response.statusText || message;
+    }
+    throw new ApiError(response.status, message);
+  }
+  return response.blob();
+}

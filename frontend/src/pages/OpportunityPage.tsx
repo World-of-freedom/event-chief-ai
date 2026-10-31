@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Ban, Building2, ExternalLink, History, MoreHorizontal, Pencil, Plus, ShieldAlert } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, Ban, Building2, ExternalLink, History, Mail, MoreHorizontal, Pencil, PhoneCall, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/EmptyState";
@@ -16,13 +16,14 @@ import { NewTaskDialog } from "@/features/tasks/TaskDialogs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { approveEmail, createEmailDraft, getOpportunity, recordManualInteraction, sendEmail, updateOpportunity } from "@/lib/api/sponsorship";
+import { approveEmail, approveVoiceCall, createEmailDraft, deleteEmailDraft, getOpportunity, sendEmail, updateEmailDraft, updateOpportunity, type OutreachMessage } from "@/lib/api/sponsorship";
 import {
   formatDate,
   formatDateTime,
@@ -36,12 +37,14 @@ import {
   taskStatusLabels,
   taskTone,
   toDateTimeLocal,
+  voiceCallStatusLabels,
+  voiceCallTone,
 } from "@/lib/format";
-import type { OpportunityStatus } from "@/types/domain";
 import type { Offer, OpportunityDetail } from "@/types/sponsorship";
 
 export function OpportunityPage() {
   const { opportunityId } = useParams<{ opportunityId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const query = useQuery({
     queryKey: ["opportunity", opportunityId],
     queryFn: () => getOpportunity(opportunityId!),
@@ -87,18 +90,25 @@ export function OpportunityPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <div className="min-w-0 space-y-6">
-          <StatusCard opportunity={opportunity} />
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
+        <section className="min-w-0 space-y-6">
+          <ActivityCard
+            opportunity={opportunity}
+            openVoiceCall={searchParams.get("action") === "call"}
+            onVoiceCallDismiss={() => setSearchParams((params) => {
+              const next = new URLSearchParams(params);
+              next.delete("action");
+              return next;
+            }, { replace: true })}
+          />
           <OffersCard opportunity={opportunity} />
           <TasksCard opportunity={opportunity} />
-          <HistoryCard opportunity={opportunity} />
-        </div>
-        <div className="min-w-0 space-y-6">
+        </section>
+        <aside className="min-w-0 space-y-6">
           <ProspectCard opportunity={opportunity} />
+          <HistoryCard opportunity={opportunity} />
           <PlanCard opportunity={opportunity} />
-          <ActivityCard opportunity={opportunity} />
-        </div>
+        </aside>
       </div>
     </>
   );
@@ -111,64 +121,6 @@ function useRefreshOpportunity(opportunity: OpportunityDetail) {
     void queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard", opportunity.event_id] });
   };
-}
-
-function StatusCard({ opportunity }: { opportunity: OpportunityDetail }) {
-  const refresh = useRefreshOpportunity(opportunity);
-  const [target, setTarget] = useState<OpportunityStatus | "">("");
-  const [reason, setReason] = useState("");
-  const options = opportunity.allowed_next_statuses;
-
-  const mutation = useMutation({
-    mutationFn: () => updateOpportunity(opportunity.id, { status: target as OpportunityStatus, status_reason: reason.trim() || null }),
-    onSuccess: (updated) => {
-      refresh(updated);
-      toast.success(`Moved to ${opportunityStatusLabels[updated.status]}`);
-      setTarget("");
-      setReason("");
-    },
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Pipeline status</CardTitle>
-        <CardDescription>Statuses move in a fixed order; every change is logged.</CardDescription>
-        <CardAction>
-          <StatusPill tone={opportunityTone(opportunity.status)} className="h-6 px-2.5">{opportunityStatusLabels[opportunity.status]}</StatusPill>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        {options.length === 0 ? (
-          <p className="text-sm text-muted-foreground">This is a final status. No further moves are possible.</p>
-        ) : (
-          <FieldGroup className="gap-3">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Select value={target} onValueChange={(value) => setTarget(value as OpportunityStatus)}>
-                <SelectTrigger className="w-full sm:w-60" aria-label="Move to status"><SelectValue placeholder="Move to…" /></SelectTrigger>
-                <SelectContent>
-                  {options.map((status) => <SelectItem key={status} value={status}>{opportunityStatusLabels[status]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason or note (optional)" aria-label="Reason" maxLength={500} />
-              <Button
-                variant={target === "opted_out" ? "destructive" : "default"}
-                disabled={!target || mutation.isPending}
-                onClick={() => mutation.mutate()}
-              >
-                {mutation.isPending ? <Spinner /> : null}
-                Update
-              </Button>
-            </div>
-            {target === "opted_out" ? (
-              <p className="text-xs text-destructive">Opting out also marks the company as opted out everywhere. It can't be undone.</p>
-            ) : null}
-            {mutation.error ? <ErrorAlert className="border-destructive/30 bg-destructive-soft" message={errorMessage(mutation.error)} /> : null}
-          </FieldGroup>
-        )}
-      </CardContent>
-    </Card>
-  );
 }
 
 function OffersCard({ opportunity }: { opportunity: OpportunityDetail }) {
@@ -337,7 +289,7 @@ function ProspectCard({ opportunity }: { opportunity: OpportunityDetail }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Prospect</CardTitle>
+        <CardTitle>Sponsor details</CardTitle>
         <CardDescription className="flex flex-wrap items-center gap-2">
           <StatusPill tone={prospect.verification_status === "verified" ? "success" : prospect.verification_status === "reviewed" ? "info" : "neutral"}>
             {verificationLabels[prospect.verification_status]}
@@ -379,18 +331,6 @@ function ProspectCard({ opportunity }: { opportunity: OpportunityDetail }) {
             </a>
           ) : null}
         </div>
-        {prospect.fit_reason ? (
-          <div>
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Why they fit</p>
-            <p className="mt-1 leading-relaxed">{prospect.fit_reason}</p>
-          </div>
-        ) : null}
-        {prospect.source_notes ? (
-          <div>
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Source notes</p>
-            <p className="mt-1 leading-relaxed text-muted-foreground">{prospect.source_notes}</p>
-          </div>
-        ) : null}
       </CardContent>
       <EditProspectDialog prospect={prospect} open={editing} onOpenChange={setEditing} />
       <OptOutDialog prospect={prospect} open={optingOut} onOpenChange={setOptingOut} />
@@ -458,49 +398,289 @@ function PlanCard({ opportunity }: { opportunity: OpportunityDetail }) {
   );
 }
 
-function ActivityCard({ opportunity }: { opportunity: OpportunityDetail }) {
+function ActivityCard({
+  opportunity,
+  openVoiceCall,
+  onVoiceCallDismiss,
+}: {
+  opportunity: OpportunityDetail;
+  openVoiceCall: boolean;
+  onVoiceCallDismiss: () => void;
+}) {
   const queryClient = useQueryClient();
-  const [note, setNote] = useState("");
-  const [followUp, setFollowUp] = useState("");
-  const refresh = () => { void queryClient.invalidateQueries({ queryKey: ["opportunity", opportunity.id] }); void queryClient.invalidateQueries({ queryKey: ["opportunities"] }); void queryClient.invalidateQueries({ queryKey: ["tasks"] }); };
-  const draft = useMutation({ mutationFn: () => createEmailDraft(opportunity.id), onSuccess: () => { refresh(); toast.success("Email draft created. Review and approve it before sending."); }, onError: (error) => toast.error(errorMessage(error)) });
+  const [channel, setChannel] = useState<"voice" | "email">("voice");
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [editingDraft, setEditingDraft] = useState<OpportunityDetail["messages"][number] | null>(null);
+  const [sendingMessageId, setSendingMessageId] = useState<string | null>(null);
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["opportunity", opportunity.id] });
+    void queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+  };
+  const draft = useMutation({
+    mutationFn: () => createEmailDraft(opportunity.id),
+    onSuccess: (message) => {
+      setEditingDraft(message);
+      setEmailDialogOpen(true);
+      refresh();
+      toast.success("Email draft created. Review it before approving.");
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
   const approve = useMutation({ mutationFn: approveEmail, onSuccess: () => { refresh(); toast.success("Outreach approved"); }, onError: (error) => toast.error(errorMessage(error)) });
-  const send = useMutation({ mutationFn: sendEmail, onSuccess: () => { refresh(); toast.success("Email sent"); }, onError: (error) => toast.error(errorMessage(error)) });
-  const manual = useMutation({ mutationFn: () => recordManualInteraction(opportunity.id, { direction: "outbound", body: note.trim(), follow_up_title: followUp.trim() || null }), onSuccess: () => { setNote(""); setFollowUp(""); refresh(); toast.success("Manual interaction recorded"); }, onError: (error) => toast.error(errorMessage(error)) });
-  const empty = opportunity.messages.length === 0 && opportunity.calls.length === 0;
+  const send = useMutation({
+    mutationFn: sendEmail,
+    onMutate: (messageId) => setSendingMessageId(messageId),
+    onSuccess: () => { refresh(); toast.success("Email sent"); },
+    onError: () => toast.error("Email delivery failed. You can retry the email."),
+    onSettled: () => setSendingMessageId(null),
+  });
+  const deleteDraft = useMutation({ mutationFn: deleteEmailDraft, onSuccess: () => { setEmailDialogOpen(false); setEditingDraft(null); refresh(); toast.success("Email draft deleted"); }, onError: (error) => toast.error(errorMessage(error)) });
+  const emailMessages = opportunity.messages.filter((message) => message.channel === "email");
+
+  useEffect(() => {
+    if (openVoiceCall) setChannel("voice");
+  }, [openVoiceCall]);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Emails &amp; calls</CardTitle>
-        <CardDescription>Every email requires explicit approval. Added {formatDate(opportunity.created_at)}</CardDescription>
-        <CardAction><Button size="sm" variant="outline" disabled={opportunity.outreach_blocked || draft.isPending} onClick={() => draft.mutate()}>{draft.isPending ? <Spinner /> : null}Draft email</Button></CardAction>
+        <CardTitle>Contact sponsor</CardTitle>
+        <CardDescription>Use one channel at a time so the next action stays clear.</CardDescription>
+        <CardAction className="flex flex-wrap gap-2">
+          <Button size="sm" variant={channel === "email" ? "default" : "outline"} onClick={() => setChannel("email")}>
+            <Mail />Email
+          </Button>
+          <VoiceCallDialog
+            opportunity={opportunity}
+            autoOpen={openVoiceCall}
+            onDismiss={onVoiceCallDismiss}
+            onTriggerClick={() => setChannel("voice")}
+            triggerActive={channel === "voice"}
+          />
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
-        {empty ? (
-          <p className="text-muted-foreground">No interactions yet. Draft an email or log a human conversation.</p>
+        {channel === "voice" ? (
+          <section aria-label="Voice calls" className="space-y-3">
+            <div>
+              <p className="font-medium">Voice calls</p>
+              <p className="text-muted-foreground">Approved calls are picked up by the Voice AI worker and tracked here.</p>
+            </div>
+            {opportunity.calls.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-3 text-muted-foreground">No voice calls yet. Use Voice call to review consent and queue the first call.</p>
+            ) : (
+              <ul className="divide-y">
+                {opportunity.calls.map((call) => (
+                  <li key={call.id} className="flex min-w-0 items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                    <Link to={`/calls/${call.id}`} className="min-w-0 truncate hover:text-primary hover:underline">Voice call · {formatDateTime(call.created_at)}</Link>
+                    <StatusPill tone={voiceCallTone(call.status)} className="shrink-0">{voiceCallStatusLabels[call.status] || call.status}</StatusPill>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         ) : (
-          <ul className="divide-y">
-            {opportunity.messages.map((message) => (
-              <li key={message.id} className="flex justify-between gap-3 py-2">
-                <span className="truncate">{message.subject || message.message_type}</span>
-                <span className="flex shrink-0 items-center gap-2"><span className="text-muted-foreground">{message.status}</span>{message.status === "draft" ? <Button size="xs" disabled={approve.isPending} onClick={() => approve.mutate(message.id)}>Approve</Button> : null}{message.status === "approved" ? <Button size="xs" disabled={send.isPending} onClick={() => send.mutate(message.id)}>Send</Button> : null}</span>
-              </li>
-            ))}
-            {opportunity.calls.map((call) => (
-              <li key={call.id} className="flex justify-between gap-3 py-2">
-                <span>Call · {formatDateTime(call.created_at)}</span>
-                <span className="shrink-0 text-muted-foreground">{call.status}</span>
-              </li>
-            ))}
-          </ul>
+          <section aria-label="Email outreach" className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">Email outreach</p>
+                <p className="text-muted-foreground">Create, review, approve, and send emails from one place.</p>
+              </div>
+              <Button size="sm" disabled={opportunity.outreach_blocked || draft.isPending} onClick={() => draft.mutate()}>
+                {draft.isPending ? <Spinner /> : <Mail />}Create email
+              </Button>
+            </div>
+            {emailMessages.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-3 text-muted-foreground">No email outreach yet. Create an email to review its draft before approval.</p>
+            ) : (
+              <ul className="divide-y">
+                {emailMessages.map((message) => (
+                  <li key={message.id} className="flex min-w-0 flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{message.subject || message.message_type}</p>
+                      <p className="truncate text-xs text-muted-foreground">To {message.recipient || "No recipient"}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <StatusPill tone={message.status === "sent" ? "success" : message.status === "draft" ? "neutral" : message.status === "failed" ? "danger" : "info"}>{message.status}</StatusPill>
+                      <Button size="xs" variant="outline" onClick={() => { setEditingDraft(message); setEmailDialogOpen(true); }}>
+                        {message.status === "draft" ? "View & edit" : "View email"}
+                      </Button>
+                      {message.status === "draft" ? <Button size="xs" disabled={approve.isPending} onClick={() => approve.mutate(message.id)}>Approve</Button> : null}
+                      {message.status === "draft" ? <Button size="xs" variant="ghost" disabled={deleteDraft.isPending} onClick={() => deleteDraft.mutate(message.id)}><Trash2 />Delete</Button> : null}
+                      {message.status === "approved" || message.status === "failed" ? (
+                        <Button size="xs" disabled={send.isPending} onClick={() => send.mutate(message.id)}>
+                          {sendingMessageId === message.id ? <Spinner /> : null}
+                          {sendingMessageId === message.id ? (message.status === "failed" ? "Retrying…" : "Sending…") : (message.status === "failed" ? "Retry send" : "Send")}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         )}
-        <div className="space-y-2 border-t pt-4">
-          <p className="font-medium">Log a manual interaction</p>
-          <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} placeholder="What happened when you contacted this sponsor?" />
-          <Input value={followUp} onChange={(event) => setFollowUp(event.target.value)} placeholder="Optional follow-up task" />
-          <Button size="sm" variant="outline" disabled={!note.trim() || manual.isPending || opportunity.outreach_blocked} onClick={() => manual.mutate()}>{manual.isPending ? <Spinner /> : null}Save interaction</Button>
-        </div>
       </CardContent>
+      <EmailDraftDialog
+        draft={editingDraft}
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        onSaved={(message) => {
+          setEditingDraft(message);
+          refresh();
+        }}
+        onDelete={() => deleteDraft.mutate(editingDraft!.id)}
+        deleting={deleteDraft.isPending}
+      />
     </Card>
+  );
+}
+
+function EmailDraftDialog({
+  draft,
+  open,
+  onOpenChange,
+  onSaved,
+  onDelete,
+  deleting,
+}: {
+  draft: OpportunityDetail["messages"][number] | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (message: OutreachMessage) => void;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
+  const [recipient, setRecipient] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+
+  useEffect(() => {
+    if (!draft) return;
+    setRecipient(draft.recipient || "");
+    setSubject(draft.subject || "");
+    setBody(draft.body || "");
+  }, [draft]);
+
+  const save = useMutation({
+    mutationFn: () => updateEmailDraft(draft!.id, { recipient: recipient.trim(), subject: subject.trim(), body: body.trim() }),
+    onSuccess: (message) => {
+      onSaved(message);
+      toast.success("Email draft saved");
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+
+  if (!draft) return null;
+  const editable = draft.status === "draft";
+  const valid = Boolean(recipient.trim() && subject.trim() && body.trim());
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="min-w-0 max-h-[calc(100svh-2rem)] overflow-x-hidden overflow-y-auto sm:max-w-2xl"
+        style={{ width: "min(42rem, calc(100vw - 2rem))" }}
+      >
+        <DialogHeader>
+          <DialogTitle>{editable ? "Edit email draft" : "Email"}</DialogTitle>
+          <DialogDescription>
+            {editable ? "Review and edit this email before approving it for delivery." : "This email is read-only because it has already been approved or sent."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Field>
+            <FieldLabel htmlFor="email-recipient">To</FieldLabel>
+            <Input id="email-recipient" type="email" value={recipient} disabled={!editable} onChange={(event) => setRecipient(event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="email-subject">Subject</FieldLabel>
+            <Input id="email-subject" value={subject} disabled={!editable} onChange={(event) => setSubject(event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="email-body">Message</FieldLabel>
+            <Textarea id="email-body" rows={12} value={body} disabled={!editable} onChange={(event) => setBody(event.target.value)} />
+          </Field>
+        </div>
+        <DialogFooter showCloseButton>
+          {editable ? (
+            <>
+              <Button variant="destructive" disabled={deleting || save.isPending} onClick={onDelete}><Trash2 />Delete draft</Button>
+              <Button disabled={!valid || save.isPending || deleting} onClick={() => save.mutate()}>
+                {save.isPending ? <Spinner /> : null}Save changes
+              </Button>
+            </>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VoiceCallDialog({
+  opportunity,
+  autoOpen = false,
+  onDismiss,
+  onTriggerClick,
+  triggerActive = true,
+}: {
+  opportunity: OpportunityDetail;
+  autoOpen?: boolean;
+  onDismiss?: () => void;
+  onTriggerClick?: () => void;
+  triggerActive?: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [instructions, setInstructions] = useState("");
+  const [consent, setConsent] = useState(false);
+  const hasPhone = Boolean(opportunity.prospect.phone);
+  useEffect(() => {
+    if (autoOpen && hasPhone && !opportunity.outreach_blocked) setOpen(true);
+  }, [autoOpen, hasPhone, opportunity.outreach_blocked]);
+  const mutation = useMutation({
+    mutationFn: () => approveVoiceCall(opportunity.id, { instructions: instructions.trim() || null, consent_confirmed: true }),
+    onSuccess: () => {
+      setOpen(false);
+      onDismiss?.();
+      setInstructions("");
+      setConsent(false);
+      void queryClient.invalidateQueries({ queryKey: ["opportunity", opportunity.id] });
+      void queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+      toast.success("Voice call added to the queue");
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) onDismiss?.(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant={triggerActive ? "default" : "outline"} disabled={opportunity.outreach_blocked || !hasPhone} onClick={onTriggerClick} title={!hasPhone ? "Add a sponsor phone number before approving a voice call." : undefined}>
+          <PhoneCall />Voice call
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Approve voice call</DialogTitle>
+          <DialogDescription className="pr-5 leading-relaxed text-pretty">
+            Event details for {opportunity.event_name} will be shared with the Voice AI agent when it contacts {opportunity.prospect.company_name} at {opportunity.prospect.phone}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <FieldLabel htmlFor="voice-instructions">Instructions for this sponsor (optional)</FieldLabel>
+            <Textarea id="voice-instructions" rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} maxLength={2000} placeholder="e.g. Ask for the developer-relations team." />
+          </div>
+          <label htmlFor="voice-consent" className="flex min-w-0 cursor-pointer items-start gap-3 rounded-lg border bg-muted/40 p-3 text-sm leading-relaxed hover:bg-muted/70">
+            <Checkbox id="voice-consent" className="mt-0.5" checked={consent} onCheckedChange={(value) => setConsent(value === true)} />
+            <span className="min-w-0 flex-1">I am authorized to contact this sponsor and have confirmed any required consent for this voice call.</span>
+          </label>
+        </div>
+        <DialogFooter showCloseButton>
+          <Button disabled={!consent || mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending ? <Spinner /> : null}Approve and queue
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

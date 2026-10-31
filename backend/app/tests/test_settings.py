@@ -44,3 +44,27 @@ def test_platform_admin_allowlist_is_server_side_and_normalized() -> None:
     settings = Settings(_env_file=None, PLATFORM_ADMIN_EMAILS=" Admin@Example.com, second@example.com ")
 
     assert settings.bootstrap_admin_emails == {"admin@example.com", "second@example.com"}
+
+
+def test_gmail_delivery_requires_a_sender_and_app_password() -> None:
+    configured = Settings(_env_file=None, GMAIL_SENDER_EMAIL="sumitscience2017@gmail.com", GMAIL_APP_PASSWORD="abcdefghijklmnop")
+    incomplete = Settings(_env_file=None, GMAIL_SENDER_EMAIL="sumitscience2017@gmail.com")
+
+    assert configured.configured_gmail is True
+    assert incomplete.configured_gmail is False
+
+
+def test_email_delivery_uses_the_selected_provider() -> None:
+    resend = Settings(_env_file=None, EMAIL_PROVIDER="resend", RESEND_API_KEY="re_test", RESEND_FROM_EMAIL="App <outreach@example.com>")
+    gmail = Settings(_env_file=None, EMAIL_PROVIDER="gmail", GMAIL_SENDER_EMAIL="sumitscience2017@gmail.com", GMAIL_APP_PASSWORD="abcdefghijklmnop")
+
+    assert resend.configured_email_delivery is True
+    assert gmail.configured_email_delivery is True
+
+
+def test_resend_test_mode_requires_a_test_recipient() -> None:
+    missing_recipient = Settings(_env_file=None, RESEND_API_KEY="re_test", RESEND_FROM_EMAIL="App <onboarding@resend.dev>", RESEND_TEST_MODE=True)
+    configured = Settings(_env_file=None, RESEND_API_KEY="re_test", RESEND_FROM_EMAIL="App <onboarding@resend.dev>", RESEND_TEST_MODE=True, RESEND_TEST_RECIPIENT="sumitscience2017@gmail.com")
+
+    assert missing_recipient.configured_resend is False
+    assert configured.configured_resend is True

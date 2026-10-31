@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api/client";
+import { apiBlob, apiClient } from "@/lib/api/client";
 import type { OpportunityStatus } from "@/types/domain";
 import type {
   Dashboard,
@@ -15,6 +15,8 @@ import type {
   ResourceNeed,
   ResourceNeedInput,
   TaskStatus,
+  VoiceCall,
+  VoiceCallPreferences,
 } from "@/types/sponsorship";
 
 const json = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body) });
@@ -70,12 +72,36 @@ export const createEventTask = (input: { event_id: string; title: string; due_at
 export const updateTask = (id: string, input: { title?: string; due_at?: string | null; description?: string | null; status?: TaskStatus }) =>
   apiClient<FollowUpTask>(`/tasks/${id}`, json("PATCH", input));
 
-export type OutreachMessage = { id: string; channel: string; direction: string; message_type: string; subject: string | null; status: string; sent_at: string | null; created_at: string };
+export type OutreachMessage = {
+  id: string;
+  channel: string;
+  direction: string;
+  message_type: string;
+  recipient: string | null;
+  subject: string | null;
+  body: string;
+  status: string;
+  sent_at: string | null;
+  error_message: string | null;
+  created_at: string;
+};
 export const createEmailDraft = (opportunityId: string) => apiClient<OutreachMessage>(`/opportunities/${opportunityId}/emails/draft`, json("POST", {}));
+export const updateEmailDraft = (messageId: string, input: { recipient: string; subject: string; body: string }) =>
+  apiClient<OutreachMessage>(`/outreach/${messageId}/draft`, json("PATCH", input));
+export const deleteEmailDraft = (messageId: string) => apiClient<void>(`/outreach/${messageId}/draft`, { method: "DELETE" });
 export const approveEmail = (messageId: string) => apiClient<OutreachMessage>(`/outreach/${messageId}/approve`, json("POST", {}));
 export const sendEmail = (messageId: string) => apiClient<OutreachMessage>(`/outreach/${messageId}/send`, json("POST", {}));
 export const recordManualInteraction = (opportunityId: string, input: { direction: "outbound" | "inbound"; body: string; subject?: string | null; follow_up_title?: string | null; follow_up_due_at?: string | null }) =>
   apiClient<OutreachMessage>(`/opportunities/${opportunityId}/responses`, json("POST", input));
+
+export const approveVoiceCall = (opportunityId: string, input: { instructions?: string | null; consent_confirmed: true }) =>
+  apiClient<VoiceCall>(`/opportunities/${opportunityId}/calls`, json("POST", input));
+export const getVoiceCall = (callId: string) => apiClient<VoiceCall>(`/calls/${callId}`);
+export const getVoiceCallRecording = (callId: string) => apiBlob(`/calls/${callId}/recording`);
+export const cancelVoiceCall = (callId: string) => apiClient<VoiceCall>(`/calls/${callId}/cancel`, json("POST", {}));
+export const getVoiceCallPreferences = () => apiClient<VoiceCallPreferences>("/voice-preferences");
+export const saveVoiceCallPreferences = (input: Omit<VoiceCallPreferences, "updated_at">) =>
+  apiClient<VoiceCallPreferences>("/voice-preferences", json("PUT", input));
 
 export type AdminMe = { is_platform_admin: boolean };
 export type AdminUser = { id: string; email: string | null; created_at: string | null; email_confirmed_at: string | null; banned_until: string | null; is_platform_admin: boolean };

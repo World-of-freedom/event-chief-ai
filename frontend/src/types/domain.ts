@@ -1,3 +1,5 @@
+import type { ResourceNeed, ResourceNeedInput } from "@/types/sponsorship";
+
 export type NeedCategory =
   | "cash"
   | "cloud_credits"
@@ -148,11 +150,18 @@ export interface ResearchJob {
   event_theme: string | null;
   venue_city: string;
   venue_state: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  event_format: "in_person" | "online" | "hybrid";
   expected_footfall: number | null;
   primary_audience: string | null;
   budget_target_inr: number | null;
   support_types_needed: string[] | null;
+  sponsor_benefits: string | null;
   eligibility_constraints: string | null;
+  additional_notes: string | null;
+  /** The event requirements this research run was asked to solve. */
+  resource_needs: ResourceNeed[];
 
   status: ResearchJobStatus;
   progress_message: string | null;
@@ -175,35 +184,15 @@ export interface ResearchJob {
 }
 
 export interface CreateResearchJobInput {
-  event_name: string;
-  event_type: string;
-  event_theme?: string;
-  event_description?: string;
-
-  venue_city: string;
-  venue_state?: string;
-  venue_name?: string;
-  start_date?: string;
-  end_date?: string;
-  event_format?: "in_person" | "online" | "hybrid";
-
-  expected_footfall?: number;
-  primary_audience?: string;
-  audience_age_range?: string;
-  academic_disciplines?: string;
-  institution_name?: string;
-
-  budget_target_inr?: number;
-  support_types_needed?: string[];
-  sponsorship_tiers?: string;
+  /** Sponsor discovery is always scoped to an existing event. */
+  event_id: string;
+  /** Existing requirements selected from that event. */
+  resource_need_ids?: string[];
+  /** Requirements to create on the event only when the discovery launches. */
+  new_resource_needs?: ResourceNeedInput[];
   sponsor_benefits?: string;
   eligibility_constraints?: string;
-
-  previous_edition_count?: number;
-  previous_sponsors_hint?: string;
   additional_notes?: string;
-
-  event_id?: string;
 }
 
 export interface FeatureRoute {

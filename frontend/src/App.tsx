@@ -16,6 +16,8 @@ import { PipelinePage } from "@/pages/PipelinePage";
 import { ProspectDetailPage } from "@/pages/ProspectDetailPage";
 import { SponsorDiscoveryPage } from "@/pages/SponsorDiscoveryPage";
 import { TemplateFeaturePage } from "@/pages/TemplateFeaturePage";
+import { VoiceCallDetailPage } from "@/pages/VoiceCallDetailPage";
+import { VoicePreferencesPage } from "@/pages/VoicePreferencesPage";
 
 export function App() {
   return (
@@ -43,7 +45,8 @@ function ProtectedWorkspace() {
           <Route path="/follow-ups" element={<FollowUpsPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/outreach/:opportunityId" element={<TemplateFeaturePage title="Outreach composer" description="An explicit approval gate will be required before messages can be sent." todo="TODO: wire editable drafts, approval records, and a Resend adapter." />} />
-          <Route path="/calls/:callId" element={<TemplateFeaturePage title="Call review" description="Extracted provider data must remain under organizer review." todo="TODO: wire normalized webhook data and reviewed offer/task creation." />} />
+          <Route path="/calls/:callId" element={<VoiceCallDetailPage />} />
+          <Route path="/settings/voice-ai" element={<VoicePreferencesPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AppShell>

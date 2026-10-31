@@ -5,6 +5,7 @@ export type NeedPriority = "low" | "medium" | "high";
 export type NeedStatus = "open" | "in_progress" | "partially_covered" | "covered";
 export type OfferStatus = "proposed" | "under_review" | "accepted" | "rejected" | "fulfilled";
 export type TaskStatus = "open" | "in_progress" | "completed" | "canceled";
+export type VoiceCallStatus = "queued" | "processing" | "initiated" | "in_progress" | "retry_scheduled" | "completed" | "failed" | "no_answer" | "blocked" | "submission_unknown" | "cancelled";
 /** Money comes back from the API as a decimal string. */
 export type Money = string;
 
@@ -113,6 +114,7 @@ export type ProspectInput = Partial<Omit<Prospect, "id" | "opted_out" | "opted_o
 export interface ProspectSummary {
   id: string;
   company_name: string;
+  contact_name: string | null;
   industry: string | null;
   email: string | null;
   phone: string | null;
@@ -130,6 +132,8 @@ export interface OpportunityListItem {
   next_action: string | null;
   next_action_due_at: string | null;
   last_contacted_at: string | null;
+  latest_call_id: string | null;
+  latest_call_status: VoiceCallStatus | null;
   offer_count: number;
   open_task_count: number;
   created_at: string;
@@ -209,6 +213,65 @@ export interface OpportunityDetail extends OpportunityListItem {
   status_history: StatusHistoryEntry[];
   offers: Offer[];
   tasks: FollowUpTask[];
-  messages: { id: string; channel: string; direction: string; message_type: string; subject: string | null; status: string; sent_at: string | null; created_at: string }[];
+  messages: {
+    id: string;
+    channel: string;
+    direction: string;
+    message_type: string;
+    recipient: string | null;
+    subject: string | null;
+    body: string;
+    status: string;
+    sent_at: string | null;
+    error_message: string | null;
+    created_at: string;
+  }[];
   calls: { id: string; status: string; outcome: string | null; review_status: string; created_at: string }[];
+}
+
+export interface VoiceCallAttempt {
+  id: string;
+  attempt_number: number;
+  status: string;
+  bolna_call_id: string | null;
+  submitted_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface VoiceCall {
+  id: string;
+  opportunity_id: string;
+  recipient_phone: string | null;
+  status: VoiceCallStatus;
+  outcome: string | null;
+  review_status: string;
+  instructions: string | null;
+  next_attempt_at: string | null;
+  lease_expires_at: string | null;
+  attempt_count: number;
+  max_attempts: number;
+  last_error: string | null;
+  cancelled_at: string | null;
+  summary: string | null;
+  transcript_text: string | null;
+  recording_url: string | null;
+  extracted_fields: Record<string, unknown>;
+  approved_at: string | null;
+  consent_confirmed_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+  attempts: VoiceCallAttempt[];
+}
+
+export interface VoiceCallPreferences {
+  calling_window_start: string;
+  calling_window_end: string;
+  allowed_weekdays: number[];
+  timezone: string;
+  updated_at: string | null;
 }

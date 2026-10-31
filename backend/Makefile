@@ -1,4 +1,4 @@
-.PHONY: db-current db-upgrade db-downgrade db-revision db-history db-sql test
+.PHONY: db-current db-upgrade db-downgrade db-revision db-history db-sql test worker
 
 db-current:
 	alembic -c alembic.ini current
@@ -21,3 +21,6 @@ db-sql:
 
 test:
 	pytest -q
+
+worker:
+	python -m app.workers.bolna_worker

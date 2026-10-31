@@ -15,7 +15,7 @@ from app.core.auth import CurrentUser, get_current_user
 from app.core.database import get_db_session
 from app.models.enums import OpportunityStatus as OpportunityStatusEnum
 from app.models.events import Event
-from app.models.outreach import FollowUpTask, Offer
+from app.models.outreach import Call, FollowUpTask, Offer
 from app.models.prospects import Opportunity, OpportunityStatusHistory, Prospect
 from app.models.research import ResearchJob, SponsorLead
 from app.repositories.sponsorship import get_owned_event, get_owned_opportunity, get_owned_prospect
@@ -121,6 +121,14 @@ def _list_items(db: Session, opportunities: list[Opportunity]) -> list[Opportuni
             .group_by(FollowUpTask.opportunity_id)
         ).all()
     ) if ids else {}
+    latest_calls: dict[UUID, Call] = {}
+    if ids:
+        for call in db.scalars(
+            select(Call)
+            .where(Call.opportunity_id.in_(ids))
+            .order_by(Call.opportunity_id, Call.created_at.desc())
+        ):
+            latest_calls.setdefault(call.opportunity_id, call)
     return [
         OpportunityListItemOut(
             id=o.id,
@@ -131,6 +139,8 @@ def _list_items(db: Session, opportunities: list[Opportunity]) -> list[Opportuni
             next_action=o.next_action,
             next_action_due_at=o.next_action_due_at,
             last_contacted_at=o.last_contacted_at,
+            latest_call_id=latest_calls[o.id].id if o.id in latest_calls else None,
+            latest_call_status=latest_calls[o.id].status.value if o.id in latest_calls else None,
             offer_count=offer_counts.get(o.id, 0),
             open_task_count=task_counts.get(o.id, 0),
             created_at=o.created_at,

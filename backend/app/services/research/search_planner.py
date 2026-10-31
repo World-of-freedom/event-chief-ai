@@ -68,10 +68,10 @@ PLANNER_HUMAN_PROMPT = """Plan sponsorship search queries for this event:
 - Expected Footfall: {expected_footfall}
 - Primary Audience: {primary_audience}
 - Academic Disciplines / Focus: {academic_disciplines}
-- Support Needed: {support_types}
+- Selected resource requirements: {resource_requirements}
 - Institution: {institution_name}
-- Previous Sponsors Hint: {previous_sponsors_hint}
 - Eligibility / partner constraints: {eligibility_constraints}
+- Benefits offered to sponsors: {sponsor_benefits}
 - Notes: {additional_notes}
 
 Generate targeted search queries to discover live sponsor candidates. Output JSON with "analysis" and "queries": [{{"query": "...", "category": "..."}}]."""
@@ -119,10 +119,13 @@ async def generate_search_plan(
             "expected_footfall": event_details.get("expected_footfall") or "Hundreds",
             "primary_audience": event_details.get("primary_audience") or "college students and youth",
             "academic_disciplines": event_details.get("academic_disciplines") or "all majors",
-            "support_types": ", ".join(event_details.get("support_types_needed") or ["cash", "in-kind"]),
+            "resource_requirements": "; ".join(
+                f"{need.get('title', need.get('category', 'Requirement'))}: {need.get('description') or need.get('category', '')}"
+                for need in event_details.get("resource_requirements", [])
+            ) or ", ".join(event_details.get("support_types_needed") or ["cash", "in-kind"]),
             "institution_name": event_details.get("institution_name") or "college/university",
-            "previous_sponsors_hint": event_details.get("previous_sponsors_hint") or "None specified",
             "eligibility_constraints": event_details.get("eligibility_constraints") or "None specified",
+            "sponsor_benefits": event_details.get("sponsor_benefits") or "Not specified",
             "additional_notes": event_details.get("additional_notes") or "",
         })
 

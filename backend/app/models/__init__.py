@@ -3,13 +3,14 @@
 from app.models.base import Base
 from app.models.admin import PlatformAdmin
 from app.models.events import Event, ResourceNeed
-from app.models.outreach import Call, FollowUpTask, Offer, OutreachMessage, WebhookEvent
+from app.models.outreach import Call, CallAttempt, FollowUpTask, Offer, OutreachMessage, VoiceCallPreference, WebhookEvent
 from app.models.prospects import Opportunity, OpportunityStatusHistory, Prospect
 from app.models.research import CompanyResearchCache, LeadContact, LeadContactVerification, LeadEvidence, LeadOutreach, ResearchJob, SponsorLead
 
 __all__ = [
     "Base",
     "Call",
+    "CallAttempt",
     "Event",
     "FollowUpTask",
     "LeadEvidence",
@@ -27,4 +28,5 @@ __all__ = [
     "ResourceNeed",
     "SponsorLead",
     "WebhookEvent",
+    "VoiceCallPreference",
 ]

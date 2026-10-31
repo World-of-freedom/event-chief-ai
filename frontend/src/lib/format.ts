@@ -112,3 +112,25 @@ export function taskTone(status: TaskStatus, overdue = false): Tone {
   if (status === "canceled") return "neutral";
   return "info";
 }
+
+export const voiceCallStatusLabels: Record<string, string> = {
+  queued: "Queued",
+  processing: "Starting call",
+  initiated: "Submitted to Bolna",
+  in_progress: "Call in progress",
+  retry_scheduled: "Retry scheduled",
+  completed: "Completed",
+  failed: "Failed",
+  no_answer: "No answer",
+  blocked: "Needs contact update",
+  submission_unknown: "Needs reconciliation",
+  cancelled: "Cancelled",
+};
+
+export function voiceCallTone(status: string): Tone {
+  if (status === "completed") return "success";
+  if (status === "failed" || status === "blocked" || status === "submission_unknown") return "danger";
+  if (status === "retry_scheduled" || status === "no_answer") return "warning";
+  if (status === "cancelled") return "neutral";
+  return "info";
+}

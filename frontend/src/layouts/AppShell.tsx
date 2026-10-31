@@ -6,6 +6,7 @@ import {
   Compass,
   LayoutDashboard,
   LogOut,
+  PhoneCall,
   ShieldCheck,
   Ticket,
   Users,
@@ -76,7 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AppSidebar />
       <SidebarInset>
         <Topbar />
-        <main className="mx-auto w-full max-w-6xl px-4 pt-8 pb-14 md:px-7">
+        <main className="mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-4 pt-8 pb-14 md:px-7">
           <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
         </main>
       </SidebarInset>
@@ -191,6 +192,10 @@ function AppSidebar() {
               <DropdownMenuContent side="top" align="start" className="w-(--radix-dropdown-menu-trigger-width) min-w-56">
                 <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{email}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => navigate("/settings/voice-ai")}>
+                  <PhoneCall />
+                  Voice AI preferences
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => void handleSignOut()}>
                   <LogOut />
                   Sign out

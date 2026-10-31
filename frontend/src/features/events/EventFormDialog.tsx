@@ -19,9 +19,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { fieldsFor, requirementTitle } from "@/features/needs/requirementFields";
 import { createEvent, listEvents, updateEvent } from "@/lib/api/sponsorship";
 import { eventTypeOptions } from "@/lib/event-types";
-import { needCategoryLabels } from "@/lib/format";
+import { needCategoryLabels, needPriorityLabels } from "@/lib/format";
 import type { NeedCategory } from "@/types/domain";
-import type { EventInput, EventRecord } from "@/types/sponsorship";
+import type { EventInput, EventRecord, NeedPriority } from "@/types/sponsorship";
 
 const categories = ["cash", "cloud_credits", "equipment", "speakers", "mentors", "venue", "volunteers", "prizes", "food", "merchandise", "other"] as const;
 const money = /^\d{1,10}(\.\d{1,2})?$/;
@@ -32,6 +32,8 @@ const requirementSchema = z.object({
   target_amount: z.string().trim().refine((value) => value === "" || money.test(value), "Enter an amount like 50000 or 2500.50"),
   target_quantity: z.string().trim().refine((value) => value === "" || (/^\d+$/.test(value) && Number(value) >= 1), "Enter a whole number of 1 or more"),
   details: z.record(z.string()),
+  deadline: z.string(),
+  priority: z.enum(["low", "medium", "high"]),
   description: z.string().trim().min(1, "Describe what is needed"),
   notes: z.string(),
 }).superRefine((value, ctx) => {
@@ -61,7 +63,7 @@ const schema = z.object({
 }).refine((value) => !value.end_date || !value.start_date || value.end_date >= value.start_date, { path: ["end_date"], message: "End date can't be before the start date" });
 
 type FormValues = z.infer<typeof schema>;
-const blankRequirement = { category: "cash" as NeedCategory, target_amount: "", target_quantity: "", details: {}, description: "", notes: "" };
+const blankRequirement = { category: "cash" as NeedCategory, target_amount: "", target_quantity: "", details: {}, deadline: "", priority: "medium" as const, description: "", notes: "" };
 const emptyToNull = (value: string) => value.trim() || null;
 
 function toValues(event?: EventRecord, defaultParentEventId?: string | null): FormValues {
@@ -81,7 +83,7 @@ function toInput(values: FormValues): EventInput {
     organizer_name: emptyToNull(values.organizer_name), organizer_email: emptyToNull(values.organizer_email), organizer_phone: emptyToNull(values.organizer_phone), description: emptyToNull(values.description),
     resource_needs: values.requirements.map((need) => ({
       category: need.category, title: requirementTitle(need.category), target_amount: need.target_amount || null, currency: "INR", target_quantity: need.target_quantity ? Number(need.target_quantity) : null,
-      deadline: null, priority: "medium", status: "open", description: need.description.trim(), notes: emptyToNull(need.notes),
+      deadline: need.deadline || null, priority: need.priority, status: "open", description: need.description.trim(), notes: emptyToNull(need.notes),
       details: Object.fromEntries(Object.entries(need.details).filter(([, value]) => value.trim()).map(([key, value]) => [key, value.trim()])),
     })),
   };
@@ -152,6 +154,8 @@ export function EventFormDialog({ trigger, event, defaultParentEventId = null, d
             {fieldsFor(requirementValues[index]?.category ?? "cash").map((field) => { const fieldError = field.valueKey === "details" ? errors.requirements?.[index]?.details?.[field.key] : errors.requirements?.[index]?.[field.valueKey]; const name = field.valueKey === "details" ? `requirements.${index}.details.${field.key}` as const : `requirements.${index}.${field.valueKey}` as const; return <Field key={`${requirement.id}-${field.key}`} data-invalid={!!fieldError}><FieldLabel htmlFor={`initial-${index}-${field.key}`}>{field.label}{field.required ? " *" : ""}</FieldLabel><Input id={`initial-${index}-${field.key}`} inputMode={field.inputMode} placeholder={field.placeholder} aria-invalid={!!fieldError} {...register(name)} /><FieldError errors={[fieldError]} /></Field>; })}
             <Field className="sm:col-span-2" data-invalid={!!errors.requirements?.[index]?.description}><FieldLabel htmlFor={`initial-${index}-requirements`}>Requirements *</FieldLabel><Textarea id={`initial-${index}-requirements`} rows={3} aria-invalid={!!errors.requirements?.[index]?.description} {...register(`requirements.${index}.description`)} /><FieldError errors={[errors.requirements?.[index]?.description]} /></Field>
             <Field className="sm:col-span-2"><FieldLabel htmlFor={`initial-${index}-notes`}>Notes</FieldLabel><Textarea id={`initial-${index}-notes`} rows={2} {...register(`requirements.${index}.notes`)} /></Field>
+            <Field><FieldLabel htmlFor={`initial-${index}-deadline`}>Deadline</FieldLabel><Input id={`initial-${index}-deadline`} type="date" {...register(`requirements.${index}.deadline`)} /></Field>
+            <Field><FieldLabel htmlFor={`initial-${index}-priority`}>Priority *</FieldLabel><Controller control={control} name={`requirements.${index}.priority`} render={({ field }) => <Select value={field.value} onValueChange={(value) => field.onChange(value as NeedPriority)}><SelectTrigger id={`initial-${index}-priority`} className="w-full"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(needPriorityLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>} /><FieldError errors={[errors.requirements?.[index]?.priority]} /></Field>
           </FieldGroup></div>)}</div> : null}
         {mutation.error ? <ErrorAlert className="mt-4 border-destructive/30 bg-destructive-soft" message={errorMessage(mutation.error)} /> : null}
       </form>

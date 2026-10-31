@@ -19,20 +19,34 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Table,
     Text,
     UniqueConstraint,
     Uuid,
+    Column,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.ids import PUBLIC_ID_LENGTH, generate_public_id
 from app.models.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.events import ResourceNeed
 from app.models.enums import (
     EvidenceType,
     LeadVerificationStatus,
     OutreachLeadStatus,
     ResearchJobStatus,
     db_enum,
+)
+
+
+# A discovery run can focus on several of an event's resource requirements.
+# Keep this as a relation rather than a JSON list so ownership, deletion and
+# the detail view all remain consistent with the event requirement workflow.
+research_job_resource_needs = Table(
+    "research_job_resource_needs",
+    Base.metadata,
+    Column("research_job_id", ForeignKey("research_jobs.id", ondelete="CASCADE"), primary_key=True),
+    Column("resource_need_id", ForeignKey("resource_needs.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
@@ -49,7 +63,8 @@ class ResearchJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         default=generate_public_id,
     )
 
-    # Owner and event linkage (event_id is optional — jobs can be run without a saved event)
+    # New jobs are always linked to an event. The column remains nullable only
+    # so pre-event-linkage historical runs can continue to be read.
     owner_id: Mapped[UUID] = mapped_column(
         Uuid,
         ForeignKey("auth.users.id", ondelete="CASCADE"),
@@ -111,6 +126,11 @@ class ResearchJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     # Relationships
     leads: Mapped[list[SponsorLead]] = relationship("SponsorLead", back_populates="job", cascade="all, delete-orphan")
+    resource_needs: Mapped[list[ResourceNeed]] = relationship(
+        "ResourceNeed",
+        secondary=research_job_resource_needs,
+        order_by="ResourceNeed.created_at",
+    )
 
     @property
     def lead_count(self) -> int:

@@ -25,44 +25,44 @@ export function LeadEvidenceList({ evidence }: { evidence: LeadEvidence[] }) {
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex min-w-0 max-w-full flex-col gap-2">
       {evidence.map((item, idx) => (
-        <li key={item.id || idx} className="flex flex-col gap-2 rounded-lg border bg-background p-3 text-xs">
-          <div className="flex items-center justify-between gap-2">
+        <li key={item.id || idx} className="flex min-w-0 max-w-full flex-col gap-2 overflow-hidden rounded-lg border bg-background p-3 text-xs">
+          <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
             <StatusPill tone="brand">
               <CheckCircle2 />
               {formatEvidenceType(item.evidence_type)}
             </StatusPill>
             {item.source_quality === "official" ? (
-              <span className="font-medium text-success">Official source</span>
+              <span className="font-medium text-success sm:shrink-0">Official source</span>
             ) : item.is_llm_inferred ? (
-              <span className="flex items-center gap-1 text-warning" title="Inferred from context">
+              <span className="flex items-center gap-1 text-warning sm:shrink-0" title="Inferred from context">
                 <AlertCircle className="size-3" /> Inferred
               </span>
             ) : (
-              <span className="text-muted-foreground">From source</span>
+              <span className="text-muted-foreground sm:shrink-0">From source</span>
             )}
           </div>
 
-          <p className="leading-relaxed text-foreground">{item.claim}</p>
+          <p className="min-w-0 break-words leading-relaxed text-foreground [overflow-wrap:anywhere]">{item.claim}</p>
           {item.source_excerpt ? (
-            <blockquote className="border-l-2 border-primary/40 pl-2 text-muted-foreground">
+            <blockquote className="min-w-0 break-words border-l-2 border-primary/40 pl-2 text-muted-foreground [overflow-wrap:anywhere]">
               “{item.source_excerpt}”
             </blockquote>
           ) : null}
 
           {item.source_url ? (
-            <div className="flex items-center justify-between gap-3 border-t pt-2">
+            <div className="flex min-w-0 flex-col gap-2 border-t pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <a
                 href={item.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-w-0 items-center gap-1 text-primary hover:underline"
+                className="inline-flex min-w-0 max-w-full items-center gap-1 text-primary hover:underline"
               >
                 <ExternalLink className="size-3 shrink-0" />
-                <span className="truncate">{item.source_title || item.source_url}</span>
+                <span className="min-w-0 break-words [overflow-wrap:anywhere]">{item.source_title || item.source_url}</span>
               </a>
-              {(item.retrieved_at || item.verified_date) ? <span className="shrink-0 text-muted-foreground">Retrieved {new Date(item.retrieved_at || item.verified_date!).toLocaleDateString()}</span> : null}
+              {(item.retrieved_at || item.verified_date) ? <span className="text-muted-foreground sm:shrink-0">Retrieved {new Date(item.retrieved_at || item.verified_date!).toLocaleDateString()}</span> : null}
             </div>
           ) : null}
         </li>

@@ -44,9 +44,18 @@ class Settings(DatabaseSettings):
     supabase_key: str | None = Field(default=None, validation_alias="SUPABASE_KEY")
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
     resend_from_email: str | None = Field(default=None, alias="RESEND_FROM_EMAIL")
+    resend_test_mode: bool = Field(default=False, alias="RESEND_TEST_MODE")
+    resend_test_recipient: str | None = Field(default=None, alias="RESEND_TEST_RECIPIENT")
+    email_provider: Literal["resend", "gmail"] = Field(default="resend", alias="EMAIL_PROVIDER")
+    gmail_sender_email: str | None = Field(default=None, alias="GMAIL_SENDER_EMAIL")
+    gmail_app_password: SecretStr | None = Field(default=None, alias="GMAIL_APP_PASSWORD")
     bolna_api_key: str | None = Field(default=None, alias="BOLNA_API_KEY")
     bolna_agent_id: str | None = Field(default=None, alias="BOLNA_AGENT_ID")
+    bolna_from_phone_number: str | None = Field(default=None, alias="BOLNA_FROM_PHONE_NUMBER")
     bolna_webhook_secret: str | None = Field(default=None, alias="BOLNA_WEBHOOK_SECRET")
+    worker_poll_interval: int = Field(default=10, ge=1, le=300, alias="WORKER_POLL_INTERVAL")
+    worker_lease_seconds: int = Field(default=120, ge=15, le=3600, alias="WORKER_LEASE_SECONDS")
+    worker_max_attempts: int = Field(default=3, ge=1, le=10, alias="WORKER_MAX_ATTEMPTS")
     frontend_origin: str = Field(default="http://localhost:5173", alias="FRONTEND_ORIGIN")
     app_env: str = Field(default="development", alias="APP_ENV")
     platform_admin_emails: str = Field(default="", alias="PLATFORM_ADMIN_EMAILS")
@@ -87,7 +96,17 @@ class Settings(DatabaseSettings):
 
     @property
     def configured_resend(self) -> bool:
-        return bool(self.resend_api_key and self.resend_from_email)
+        if not self.resend_api_key or not self.resend_from_email:
+            return False
+        return bool(self.resend_test_recipient) if self.resend_test_mode else True
+
+    @property
+    def configured_gmail(self) -> bool:
+        return bool(self.gmail_sender_email and self.gmail_app_password)
+
+    @property
+    def configured_email_delivery(self) -> bool:
+        return self.configured_resend if self.email_provider == "resend" else self.configured_gmail
 
     @property
     def configured_bolna(self) -> bool:

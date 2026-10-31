@@ -96,16 +96,32 @@ def _normalized_brief(job: ResearchJob) -> dict[str, Any]:
         "requirements": {
             "budget_target_inr": float(job.budget_target_inr) if job.budget_target_inr is not None else None,
             "support_types": job.support_types_needed or [],
-            "tiers": job.sponsorship_tiers,
+            "resource_needs": _resource_need_context(job),
             "benefits": job.sponsor_benefits,
             "eligibility_constraints": job.eligibility_constraints,
         },
         "history_and_constraints": {
-            "previous_edition_count": job.previous_edition_count,
-            "previous_sponsors": job.previous_sponsors_hint,
             "custom_constraints": job.additional_notes,
         },
     }
+
+
+def _resource_need_context(job: ResearchJob) -> list[dict[str, Any]]:
+    """Serialize selected event requirements into the immutable search brief."""
+    return [
+        {
+            "title": need.title,
+            "category": need.category.value if hasattr(need.category, "value") else str(need.category),
+            "description": need.description,
+            "details": need.details or {},
+            "target_amount": float(need.target_amount) if need.target_amount is not None else None,
+            "currency": need.currency,
+            "target_quantity": need.target_quantity,
+            "deadline": need.deadline.isoformat() if need.deadline else None,
+            "priority": need.priority.value if hasattr(need.priority, "value") else str(need.priority),
+        }
+        for need in job.resource_needs
+    ]
 
 
 def _event_context(job: ResearchJob) -> dict[str, Any]:
@@ -126,10 +142,9 @@ def _event_context(job: ResearchJob) -> dict[str, Any]:
         "institution_name": job.institution_name,
         "budget_target_inr": float(job.budget_target_inr) if job.budget_target_inr is not None else None,
         "support_types_needed": job.support_types_needed or [],
-        "sponsorship_tiers": job.sponsorship_tiers,
+        "resource_requirements": _resource_need_context(job),
         "sponsor_benefits": job.sponsor_benefits,
         "eligibility_constraints": job.eligibility_constraints,
-        "previous_sponsors_hint": job.previous_sponsors_hint,
         "additional_notes": job.additional_notes,
     }
 

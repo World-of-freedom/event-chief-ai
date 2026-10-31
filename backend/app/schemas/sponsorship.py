@@ -1,14 +1,15 @@
 """Prospect, opportunity, offer and follow-up API types.
 
-Email/call DTOs are intentionally minimal: those workflows are not implemented yet.
+Email and voice-call DTOs used by the sponsorship workflow.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import phonenumbers
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, StringConstraints, field_validator
@@ -22,6 +23,10 @@ OpportunityStatus = Literal[
 OfferStatus = Literal["proposed", "under_review", "accepted", "rejected", "fulfilled"]
 TaskStatus = Literal["open", "in_progress", "completed", "canceled"]
 ProspectVerification = Literal["unverified", "reviewed", "verified"]
+VoiceCallStatus = Literal[
+    "queued", "processing", "initiated", "in_progress", "retry_scheduled",
+    "completed", "failed", "no_answer", "blocked", "submission_unknown", "cancelled",
+]
 
 Text160 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
 Text180 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=180)]
@@ -158,6 +163,7 @@ class ProspectSummaryOut(BaseModel):
 
     id: UUID
     company_name: str
+    contact_name: str | None
     industry: str | None
     email: str | None
     phone: str | None
@@ -175,6 +181,8 @@ class OpportunityListItemOut(BaseModel):
     next_action: str | None
     next_action_due_at: datetime | None
     last_contacted_at: datetime | None
+    latest_call_id: UUID | None = None
+    latest_call_status: VoiceCallStatus | None = None
     offer_count: int
     open_task_count: int
     created_at: datetime
@@ -188,9 +196,12 @@ class MessageSummaryOut(BaseModel):
     channel: str
     direction: str
     message_type: str
+    recipient: str | None
     subject: str | None
+    body: str
     status: str
     sent_at: datetime | None
+    error_message: str | None
     created_at: datetime
 
 
@@ -202,6 +213,85 @@ class CallSummaryOut(BaseModel):
     outcome: str | None
     review_status: str
     created_at: datetime
+
+
+class CallAttemptOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    attempt_number: int
+    status: str
+    bolna_call_id: str | None
+    submitted_at: datetime | None
+    started_at: datetime | None
+    ended_at: datetime | None
+    error_message: str | None
+    created_at: datetime
+
+
+class VoiceCallOut(CallSummaryOut):
+    opportunity_id: UUID
+    recipient_phone: str | None
+    instructions: str | None
+    next_attempt_at: datetime | None
+    lease_expires_at: datetime | None
+    attempt_count: int
+    max_attempts: int
+    last_error: str | None
+    cancelled_at: datetime | None
+    summary: str | None
+    transcript_text: str | None
+    recording_url: str | None
+    extracted_fields: dict[str, Any]
+    approved_at: datetime | None
+    consent_confirmed_at: datetime | None
+    started_at: datetime | None
+    ended_at: datetime | None
+    updated_at: datetime
+    attempts: list[CallAttemptOut] = []
+
+
+class VoiceCallApprovalInput(BaseModel):
+    instructions: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] | None = None
+    consent_confirmed: Literal[True]
+
+
+class VoiceCallPreferenceInput(BaseModel):
+    calling_window_start: time = time(9, 0)
+    calling_window_end: time = time(22, 0)
+    allowed_weekdays: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5, 6, 7])
+    timezone: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)] = "Asia/Kolkata"
+
+    @field_validator("allowed_weekdays")
+    @classmethod
+    def weekdays(cls, value: list[int]) -> list[int]:
+        unique = sorted(set(value))
+        if not unique or any(day < 1 or day > 7 for day in unique):
+            raise ValueError("allowed_weekdays must contain one or more ISO weekday numbers from 1 to 7")
+        return unique
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("timezone must be a valid IANA timezone") from exc
+        return value
+
+    @field_validator("calling_window_end")
+    @classmethod
+    def same_day_window(cls, value: time, info) -> time:
+        start = info.data.get("calling_window_start")
+        if start and value <= start:
+            raise ValueError("calling_window_end must be later than calling_window_start")
+        return value
+
+
+class VoiceCallPreferenceOut(VoiceCallPreferenceInput):
+    model_config = ConfigDict(from_attributes=True)
+
+    updated_at: datetime | None = None
 
 
 # ── Offers ───────────────────────────────────────────────────────────────────
@@ -304,7 +394,7 @@ class OpportunityDetailOut(OpportunityListItemOut):
     calls: list[CallSummaryOut]
 
 
-# ── Not yet implemented workflows (email / calls) ────────────────────────────
+# ── Outreach inputs ─────────────────────────────────────────────────────────
 
 
 class EmailDraftInput(BaseModel):
@@ -312,6 +402,12 @@ class EmailDraftInput(BaseModel):
     recipient: EmailStr | None = None
     subject: str | None = None
     body: str | None = None
+
+
+class EmailDraftUpdateInput(BaseModel):
+    recipient: EmailStr
+    subject: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)]
 
 
 class ManualInteractionInput(BaseModel):

@@ -80,11 +80,26 @@ class MessageStatus(str, Enum):
 
 class CallStatus(str, Enum):
     QUEUED = "queued"
+    PROCESSING = "processing"
     INITIATED = "initiated"
     IN_PROGRESS = "in_progress"
+    RETRY_SCHEDULED = "retry_scheduled"
     COMPLETED = "completed"
     FAILED = "failed"
     NO_ANSWER = "no_answer"
+    BLOCKED = "blocked"
+    SUBMISSION_UNKNOWN = "submission_unknown"
+    CANCELLED = "cancelled"
+
+
+class CallAttemptStatus(str, Enum):
+    CLAIMED = "claimed"
+    SUBMITTING = "submitting"
+    SUBMITTED = "submitted"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SUBMISSION_UNKNOWN = "submission_unknown"
 
 
 class CallOutcome(str, Enum):

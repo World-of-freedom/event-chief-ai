@@ -28,5 +28,6 @@ export function routeLabelForPath(pathname: string) {
   if (pathname.startsWith("/discovery/")) return "Sponsor discovery";
   if (pathname.startsWith("/outreach/")) return "Outreach";
   if (pathname.startsWith("/calls/")) return "Call review";
+  if (pathname === "/settings/voice-ai") return "Voice AI preferences";
   return extraLabels[pathname] ?? "Workspace";
 }

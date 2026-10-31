@@ -22,6 +22,7 @@ from app.core.auth import get_current_user
 from app.core.database import get_db_session
 from app.core.settings import Settings, get_settings
 from app.models.enums import LeadVerificationStatus, OutreachLeadStatus, ResearchJobStatus
+from app.models.events import ResourceNeed
 from app.models.research import LeadContact, LeadContactVerification, LeadEvidence, LeadOutreach, ResearchJob, SponsorLead
 from app.repositories.sponsorship import get_owned_event
 from app.schemas.research import (
@@ -59,38 +60,65 @@ def create_research_job(
 ):
     """Create a new sponsor discovery research job and trigger async research."""
     owner_id = _user_uuid(current_user)
-    if body.event_id and not get_owned_event(db, owner_id, body.event_id):
+    event = get_owned_event(db, owner_id, body.event_id)
+    if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+
+    requested_need_ids = set(body.resource_need_ids)
+    selected_needs = list(
+        db.scalars(
+            select(ResourceNeed).where(
+                ResourceNeed.event_id == event.id,
+                ResourceNeed.id.in_(requested_need_ids),
+            )
+        ).all()
+    ) if requested_need_ids else []
+    if len(selected_needs) != len(requested_need_ids):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Every selected resource requirement must belong to this event.",
+        )
+
+    # New requirements intentionally become durable only when this discovery
+    # is launched. This avoids creating abandoned event requirements when an
+    # organizer leaves the staged form.
+    created_needs = [ResourceNeed(event_id=event.id, **need.model_dump()) for need in body.new_resource_needs]
+    db.add_all(created_needs)
+    db.flush()
+    resource_needs = [*selected_needs, *created_needs]
+    support_types = list(dict.fromkeys(
+        need.category.value if hasattr(need.category, "value") else str(need.category)
+        for need in resource_needs
+    ))
+    cash_target = sum(
+        (need.target_amount or 0)
+        for need in resource_needs
+        if (need.category.value if hasattr(need.category, "value") else need.category) == "cash"
+    ) or None
+
     job = ResearchJob(
         owner_id=owner_id,
-        event_id=body.event_id,
-        event_name=body.event_name,
-        event_type=body.event_type,
-        event_theme=body.event_theme,
-        event_description=body.event_description,
-        venue_city=body.venue_city,
-        venue_state=body.venue_state,
-        venue_name=body.venue_name,
-        start_date=body.start_date,
-        end_date=body.end_date,
-        event_format=body.event_format,
-        expected_footfall=body.expected_footfall,
-        primary_audience=body.primary_audience,
-        audience_age_range=body.audience_age_range,
-        academic_disciplines=body.academic_disciplines,
-        institution_name=body.institution_name,
-        budget_target_inr=body.budget_target_inr,
-        support_types_needed=body.support_types_needed,
-        sponsorship_tiers=body.sponsorship_tiers,
+        event_id=event.id,
+        event_name=event.name,
+        event_type=event.event_type,
+        event_description=event.description,
+        venue_city=event.location or ("Online" if event.is_online else event.institution),
+        start_date=event.start_date,
+        end_date=event.end_date,
+        event_format="online" if event.is_online else "in_person",
+        expected_footfall=event.expected_attendees,
+        primary_audience=event.target_audience,
+        institution_name=event.institution,
+        budget_target_inr=cash_target,
+        support_types_needed=support_types,
         sponsor_benefits=body.sponsor_benefits,
         eligibility_constraints=body.eligibility_constraints,
-        previous_edition_count=body.previous_edition_count,
-        previous_sponsors_hint=body.previous_sponsors_hint,
         additional_notes=body.additional_notes,
         status=ResearchJobStatus.PENDING,
         progress_percent=0,
         progress_message="Job submitted and queued for research.",
     )
+    job.resource_needs = resource_needs
     db.add(job)
     db.commit()
     db.refresh(job)
@@ -131,6 +159,7 @@ def retry_research_job(
         progress_percent=0,
         progress_message=f"Retry of {previous.public_id} queued for research.",
     )
+    job.resource_needs = list(previous.resource_needs)
     db.add(job)
     db.commit()
     db.refresh(job)
@@ -148,6 +177,7 @@ def list_research_jobs(
     owner_id = _user_uuid(current_user)
     jobs = (
         db.query(ResearchJob)
+        .options(selectinload(ResearchJob.resource_needs))
         .filter(ResearchJob.owner_id == owner_id)
         .order_by(desc(ResearchJob.created_at))
         .limit(limit)
@@ -166,6 +196,7 @@ def get_research_job_by_public_id(
     owner_id = _user_uuid(current_user)
     job = (
         db.query(ResearchJob)
+        .options(selectinload(ResearchJob.resource_needs))
         .filter(ResearchJob.public_id == public_id, ResearchJob.owner_id == owner_id)
         .first()
     )
@@ -184,6 +215,7 @@ def get_research_job(
     owner_id = _user_uuid(current_user)
     job = (
         db.query(ResearchJob)
+        .options(selectinload(ResearchJob.resource_needs))
         .filter(ResearchJob.id == job_id, ResearchJob.owner_id == owner_id)
         .first()
     )
@@ -203,6 +235,7 @@ def get_job_leads(
     job = (
         db.query(ResearchJob)
         .options(
+            selectinload(ResearchJob.resource_needs),
             selectinload(ResearchJob.leads).selectinload(SponsorLead.evidence),
             selectinload(ResearchJob.leads).selectinload(SponsorLead.contacts).selectinload(LeadContact.verifications),
         )

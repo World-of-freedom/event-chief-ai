@@ -50,35 +50,39 @@ export function ScoreBadge({
   matchScore,
   confidenceScore,
   showBreakdown = false,
+  breakdown = "all",
+  showScores = true,
   matchComponents,
   confidenceComponents,
 }: {
   matchScore: number;
   confidenceScore: number;
   showBreakdown?: boolean;
+  breakdown?: "match" | "confidence" | "all";
+  showScores?: boolean;
   matchComponents?: Record<string, ScoreComponent> | null;
   confidenceComponents?: Record<string, ScoreComponent> | null;
 }) {
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap gap-2">
-        <StatusPill tone={scoreTone(matchScore)} className="h-6 w-fit px-2.5 text-xs">
-          Match <span className="font-bold">{matchScore}</span>/100
-        </StatusPill>
-        <StatusPill tone={scoreTone(confidenceScore)} className="h-6 w-fit px-2.5 text-xs">
-          Confidence <span className="font-bold">{confidenceScore}</span>/100
-        </StatusPill>
-      </div>
+      {showScores ? <div className="flex flex-wrap gap-2">
+          <StatusPill tone={scoreTone(matchScore)} className="h-6 w-fit px-2.5 text-xs">
+            Match <span className="font-bold">{matchScore}</span>/100
+          </StatusPill>
+          <StatusPill tone={scoreTone(confidenceScore)} className="h-6 w-fit px-2.5 text-xs">
+            Confidence <span className="font-bold">{confidenceScore}</span>/100
+          </StatusPill>
+        </div> : null}
 
-      {showBreakdown && matchComponents ? (
+      {showBreakdown && breakdown !== "confidence" && matchComponents ? (
         <section className="space-y-3">
           <h3 className="text-sm font-semibold">Match score</h3>
           <ComponentBreakdown components={matchComponents} labels={matchLabels} />
         </section>
       ) : null}
 
-      {showBreakdown && confidenceComponents ? (
-        <section className={cn("space-y-3", matchComponents && "border-t pt-4")}>
+      {showBreakdown && breakdown !== "match" && confidenceComponents ? (
+        <section className={cn("space-y-3", breakdown === "all" && matchComponents && "border-t pt-4")}>
           <h3 className="text-sm font-semibold">Confidence score</h3>
           <ComponentBreakdown components={confidenceComponents} labels={confidenceLabels} />
         </section>

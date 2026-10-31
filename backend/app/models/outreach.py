@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, Uuid, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, Time, UniqueConstraint, Uuid, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import (
-    CallOutcome, CallStatus, MessageChannel, MessageDirection, MessageStatus, MessageType,
+    CallAttemptStatus, CallOutcome, CallStatus, MessageChannel, MessageDirection, MessageStatus, MessageType,
     OfferStatus, ResourceCategory, ReviewStatus, TaskSource, TaskStatus,
     WebhookProcessingStatus, db_enum,
 )
@@ -46,6 +46,7 @@ class Call(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "calls"
 
     opportunity_id: Mapped[UUID] = mapped_column(ForeignKey("opportunities.id", ondelete="CASCADE"), nullable=False, index=True)
+    recipient_phone: Mapped[str | None] = mapped_column(String(32))
     bolna_call_id: Mapped[str | None] = mapped_column(String(255), unique=True)
     status: Mapped[CallStatus] = mapped_column(db_enum(CallStatus, "call_status"), nullable=False, default=CallStatus.QUEUED, server_default="queued")
     outcome: Mapped[CallOutcome | None] = mapped_column(db_enum(CallOutcome, "call_outcome"))
@@ -58,11 +59,53 @@ class Call(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     consent_confirmed_by: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("auth.users.id"))
     consent_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    instructions: Mapped[str | None] = mapped_column(Text)
+    context_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3, server_default="3")
+    last_error: Mapped[str | None] = mapped_column(Text)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_webhook_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     opportunity: Mapped[Opportunity] = relationship(back_populates="calls")
+    attempts: Mapped[list[CallAttempt]] = relationship(back_populates="call", cascade="all, delete-orphan", order_by="CallAttempt.attempt_number")
+
+
+class CallAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "call_attempts"
+    __table_args__ = (UniqueConstraint("call_id", "attempt_number", name="call_attempts_call_attempt_number"),)
+
+    call_id: Mapped[UUID] = mapped_column(ForeignKey("calls.id", ondelete="CASCADE"), nullable=False, index=True)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[CallAttemptStatus] = mapped_column(
+        db_enum(CallAttemptStatus, "call_attempt_status"),
+        nullable=False,
+        default=CallAttemptStatus.CLAIMED,
+        server_default="claimed",
+    )
+    bolna_call_id: Mapped[str | None] = mapped_column(String(255), unique=True)
+    request_token: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+    call: Mapped[Call] = relationship(back_populates="attempts")
+
+
+class VoiceCallPreference(TimestampMixin, Base):
+    __tablename__ = "voice_call_preferences"
+
+    user_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("auth.users.id", ondelete="CASCADE"), primary_key=True)
+    calling_window_start: Mapped[time] = mapped_column(Time, nullable=False, server_default="09:00:00")
+    calling_window_end: Mapped[time] = mapped_column(Time, nullable=False, server_default="22:00:00")
+    allowed_weekdays: Mapped[list[int]] = mapped_column(JSONB, nullable=False, default=lambda: [1, 2, 3, 4, 5, 6, 7], server_default=text("'[1,2,3,4,5,6,7]'::jsonb"))
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Asia/Kolkata", server_default="Asia/Kolkata")
 
 
 class Offer(UUIDPrimaryKeyMixin, TimestampMixin, Base):

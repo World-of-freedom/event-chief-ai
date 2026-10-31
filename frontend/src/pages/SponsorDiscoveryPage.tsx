@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, ArrowRight, Download, Plus, Search, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Download, MapPin, PackageCheck, Plus, Search, Sparkles, Users } from "lucide-react";
 
 import { EmptyState } from "@/components/EmptyState";
 import { LoadingState } from "@/components/LoadingState";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusPill, jobStatusTone } from "@/components/StatusPill";
-import { EventDetailsForm } from "@/components/discovery/EventDetailsForm";
+import { SponsorDiscoveryForm } from "@/components/discovery/SponsorDiscoveryForm";
 import { ResearchJobProgress } from "@/components/discovery/ResearchJobProgress";
 import { SponsorLeadCard } from "@/components/discovery/SponsorLeadCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/research";
 import { ApiError } from "@/lib/api/client";
 import type { CreateResearchJobInput, ResearchJob, SponsorLead } from "@/types/domain";
+import { formatDate, needCategoryLabels } from "@/lib/format";
 
 const slugifyResearchName = (value: string) =>
   value
@@ -97,6 +98,14 @@ function BackButton({ to, label = "Back" }: { to: string; label?: string }) {
   );
 }
 
+function RequirementTags({ job, compact = false }: { job: ResearchJob; compact?: boolean }) {
+  const needs = job.resource_needs ?? [];
+  const labels = needs.length ? needs.map((need) => need.title) : (job.support_types_needed ?? []).map((type) => needCategoryLabels[type as keyof typeof needCategoryLabels] ?? type.replace(/_/g, " "));
+  if (!labels.length) return <p className="text-xs text-muted-foreground">No specific resource requirements selected.</p>;
+  const visible = compact ? labels.slice(0, 3) : labels;
+  return <div className="flex flex-wrap gap-1.5">{visible.map((label) => <span key={label} className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{label}</span>)}{compact && labels.length > visible.length ? <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">+{labels.length - visible.length}</span> : null}</div>;
+}
+
 export function SponsorDiscoveryPage() {
   return (
     <Routes>
@@ -134,7 +143,7 @@ function ResearchJobsOverviewPage() {
     <>
       <PageHeader
         title="Sponsor discovery"
-        description="Evidence-first research: discovers source-backed sponsor candidates, scores fit separately from confidence, and lets you verify selected emails only."
+        description="Research runs grouped by event, with the exact sponsorship requirements that guided each search."
         actions={<NewDiscoveryButton />}
       />
 
@@ -147,7 +156,7 @@ function ResearchJobsOverviewPage() {
           <EmptyState
             icon={<Sparkles />}
             title="No research runs yet"
-            description="Start a sponsor discovery run to find and score the best-fit partners for your next event."
+            description="Choose an event, focus the search on its resource requirements, then find and score the best-fit partners."
             action={<NewDiscoveryButton />}
           />
         )
@@ -164,21 +173,12 @@ function ResearchJobsOverviewPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-1 flex-col gap-3">
-                  <dl className="space-y-1.5 text-sm">
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-muted-foreground">Location</dt>
-                      <dd className="font-medium">{job.venue_city}</dd>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-muted-foreground">Created</dt>
-                      <dd className="font-medium">{new Date(job.created_at).toLocaleDateString()}</dd>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-muted-foreground">Leads</dt>
-                      <dd className="font-medium">{job.lead_count}</dd>
-                    </div>
-                  </dl>
-                  <p className="rounded-lg bg-muted p-2.5 text-xs text-muted-foreground">{job.progress_message || "Research run recorded."}</p>
+                  <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                    <span className="flex items-center gap-1.5"><CalendarDays className="size-3.5" />{formatDate(job.start_date)}</span>
+                    <span className="flex items-center gap-1.5"><MapPin className="size-3.5" />{job.venue_city}</span>
+                  </div>
+                  <div className="space-y-1.5"><p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><PackageCheck className="size-3.5" />Sponsorship requirements</p><RequirementTags job={job} compact /></div>
+                  <div className="flex justify-between gap-3 border-t pt-3 text-xs"><span className="text-muted-foreground">{job.lead_count} leads found</span><span className="text-muted-foreground">Started {new Date(job.created_at).toLocaleDateString()}</span></div>
                 </CardContent>
                 <CardFooter className="justify-between text-xs font-medium text-primary">
                   Open research
@@ -364,7 +364,7 @@ function ResearchDetailPage() {
         title={activeJob?.event_name || "Sponsor discovery"}
         description={
           activeJob
-            ? `Research record for ${activeJob.venue_city}. ${activeJob.progress_message || "Review the sponsor recommendations generated for this event."}`
+            ? `${formatEventType(activeJob.event_type)} · ${activeJob.venue_city}. ${activeJob.progress_message || "Review the sponsor recommendations generated for this event."}`
             : "Research record"
         }
         actions={
@@ -379,19 +379,10 @@ function ResearchDetailPage() {
 
       {activeJob ? (
         <div className="space-y-4">
-          <Card size="sm">
-            <CardContent className="space-y-2">
-              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Research summary</p>
-              <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-                <span><span className="font-medium text-foreground">City:</span> {activeJob.venue_city}</span>
-                <span><span className="font-medium text-foreground">Audience:</span> {activeJob.primary_audience || "General"}</span>
-                <span>
-                  <span className="font-medium text-foreground">Budget:</span>{" "}
-                  {activeJob.budget_target_inr ? `₹${Number(activeJob.budget_target_inr).toLocaleString("en-IN")}` : "Open"}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card size="sm"><CardHeader><CardTitle>Event brief</CardTitle><CardDescription>The saved event context used for this research run.</CardDescription></CardHeader><CardContent className="grid gap-3 text-sm sm:grid-cols-2"><div className="flex gap-2"><CalendarDays className="mt-0.5 size-4 shrink-0 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Date</p><p className="font-medium">{formatDate(activeJob.start_date)}{activeJob.end_date && activeJob.end_date !== activeJob.start_date ? ` – ${formatDate(activeJob.end_date)}` : ""}</p></div></div><div className="flex gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Location</p><p className="font-medium">{activeJob.event_format === "online" ? "Online" : activeJob.venue_city}</p></div></div><div className="flex gap-2 sm:col-span-2"><Users className="mt-0.5 size-4 shrink-0 text-muted-foreground" /><div><p className="text-xs text-muted-foreground">Audience</p><p className="font-medium">{activeJob.primary_audience || "Not specified"}</p></div></div></CardContent></Card>
+            <Card size="sm"><CardHeader><CardTitle>Sponsor brief</CardTitle><CardDescription>What this discovery run asks of potential partners.</CardDescription></CardHeader><CardContent className="space-y-4"><div><p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><PackageCheck className="size-3.5" />Resource requirements</p><RequirementTags job={activeJob} /></div>{activeJob.sponsor_benefits ? <BriefItem label="Benefits offered" value={activeJob.sponsor_benefits} /> : null}{activeJob.eligibility_constraints ? <BriefItem label="Partner constraints" value={activeJob.eligibility_constraints} /> : null}{activeJob.additional_notes ? <BriefItem label="Additional notes" value={activeJob.additional_notes} /> : null}</CardContent></Card>
+          </div>
 
           <ResearchJobProgress job={activeJob} />
         </div>
@@ -487,6 +478,10 @@ function ResearchDetailPage() {
   );
 }
 
+function BriefItem({ label, value }: { label: string; value: string }) {
+  return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 whitespace-pre-line text-sm leading-relaxed">{value}</p></div>;
+}
+
 function NewResearchPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -541,7 +536,7 @@ function NewResearchPage() {
     <>
       <PageHeader
         title="New sponsor discovery"
-        description="Define your event and launch a live sponsor research run."
+        description="Choose an event, focus its requirements, and launch live sponsor research."
         actions={<BackButton to="/discovery" />}
       />
 
@@ -550,7 +545,7 @@ function NewResearchPage() {
       {currentJob ? (
         <ResearchJobProgress job={currentJob} />
       ) : (
-        <EventDetailsForm onSubmit={handleCreateJob} onCancel={() => navigate("/discovery")} isSubmitting={isSubmitting} initialEventId={searchParams.get("event")} />
+        <SponsorDiscoveryForm onSubmit={handleCreateJob} onCancel={() => navigate("/discovery")} isSubmitting={isSubmitting} initialEventId={searchParams.get("event")} />
       )}
     </>
   );

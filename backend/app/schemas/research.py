@@ -9,48 +9,27 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.schemas.events import ResourceNeedInput, ResourceNeedOut
+
 
 # ── Request schemas ────────────────────────────────────────────────────────────
 
 
 class ResearchJobCreate(BaseModel):
-    """Input for creating a new sponsor-discovery research job."""
+    """Launch research for a saved event and a focused set of its requirements."""
 
-    # Core event identity
-    event_name: str = Field(min_length=2, max_length=200)
-    event_type: str = Field(min_length=2, max_length=80, description="e.g. hackathon, cultural_fest, tech_conference")
-    event_theme: str | None = Field(default=None, max_length=200)
-    event_description: str | None = Field(default=None, max_length=2000)
+    # Event data is authoritative on the event record and is copied into the
+    # immutable research snapshot by the route. A client cannot provide a
+    # conflicting second version of the event brief here.
+    event_id: UUID
+    resource_need_ids: list[UUID] = Field(default_factory=list, max_length=25)
+    new_resource_needs: list[ResourceNeedInput] = Field(default_factory=list, max_length=25)
 
-    # Logistics
-    venue_city: str = Field(min_length=1, max_length=120)
-    venue_state: str | None = Field(default=None, max_length=120)
-    venue_name: str | None = Field(default=None, max_length=200)
-    start_date: date | None = None
-    end_date: date | None = None
-    event_format: str = Field(default="in_person", pattern="^(in_person|online|hybrid)$")
-
-    # Audience profile
-    expected_footfall: int | None = Field(default=None, ge=1, le=10_000_000)
-    primary_audience: str | None = Field(default=None, max_length=200)
-    audience_age_range: str | None = Field(default=None, max_length=80, description="e.g. 18-25")
-    academic_disciplines: str | None = Field(default=None, max_length=500)
-    institution_name: str | None = Field(default=None, max_length=200)
-
-    # Sponsorship goals
-    budget_target_inr: Decimal | None = Field(default=None, ge=0)
-    support_types_needed: list[str] | None = Field(default=None, description="e.g. ['cash', 'cloud_credits', 'food']")
-    sponsorship_tiers: str | None = Field(default=None, max_length=1000)
+    # Sponsor-facing context. Requirement categories, quantities and values
+    # come from the selected ResourceNeed records above.
     sponsor_benefits: str | None = Field(default=None, max_length=2000)
     eligibility_constraints: str | None = Field(default=None, max_length=2000)
-
-    # Context
-    previous_edition_count: int | None = Field(default=None, ge=0)
-    previous_sponsors_hint: str | None = Field(default=None, max_length=1000)
     additional_notes: str | None = Field(default=None, max_length=2000)
-
-    # Optional linkage to a saved event
-    event_id: UUID | None = None
 
 
 # ── Response schemas ───────────────────────────────────────────────────────────
@@ -173,11 +152,17 @@ class ResearchJobOut(BaseModel):
     event_theme: str | None
     venue_city: str
     venue_state: str | None
+    start_date: date | None
+    end_date: date | None
+    event_format: str
     expected_footfall: int | None
     primary_audience: str | None
     budget_target_inr: Decimal | None
     support_types_needed: list[str] | None
+    sponsor_benefits: str | None
     eligibility_constraints: str | None
+    additional_notes: str | None
+    resource_needs: list[ResourceNeedOut] = Field(default_factory=list)
 
     status: str
     progress_message: str | None

@@ -26,4 +26,4 @@ def test_feature_routes_require_a_bearer_token() -> None:
 def test_provider_webhook_is_not_browser_authenticated() -> None:
     response = TestClient(app).post("/api/v1/webhooks/bolna")
 
-    assert response.status_code == 501
+    assert response.status_code in (401, 503)

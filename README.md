@@ -11,7 +11,9 @@ This repository is a modular Event Chief AI sponsorship MVP with a typed FastAPI
   saved event, and any lead can be added to an event's pipeline ("Add to pipeline").
 - **Email workflow:** organizers create a persisted draft, explicitly approve it (with an audit record), then send it through
   Resend only when server-side configuration is present. Manual interactions and optional follow-up tasks are recorded.
-  Bolna calling remains fail-closed until its final call contract and staging configuration are supplied.
+- **Voice workflow:** organizers explicitly approve a sponsor call, then a separate Postgres-backed worker submits it to
+  Bolna only during the organizer's permitted calling window. Attempts, retries, provider outcomes, and webhook events
+  are recorded in the existing sponsorship workflow.
 
 ### Rules the code enforces
 
@@ -42,7 +44,7 @@ frontend/                  # Vite + React + TypeScript, shadcn/ui (added via the
   src/pages/               # route-level pages
   src/lib/api/             # typed API clients
 backend/
-  app/api/routes/          # owner-scoped HTTP routes (Bolna/webhook routes remain fail-closed)
+  app/api/routes/          # owner-scoped HTTP routes and Bolna webhook handler
   app/models/              # SQLAlchemy models (Alembic source of truth)
   app/schemas/             # Pydantic request/response models with validation
   app/repositories/        # owner-scoped loaders
@@ -96,6 +98,20 @@ uvicorn app.main:app --reload
 ```
 
 Run tests with `pytest` from `backend/`. Tests marked `integration` use the configured database (and clean up after themselves); they are skipped automatically when no database URL is set, e.g. in CI. The API is available at `http://localhost:8000`, and `/docs` shows every extension route.
+
+### Bolna voice worker
+
+After configuring `DATABASE_URL`, `BOLNA_API_KEY`, `BOLNA_AGENT_ID`, `BOLNA_WEBHOOK_SECRET`, and (when needed) `BOLNA_FROM_PHONE_NUMBER` in `backend/.env`, apply the migration and start the worker in a second terminal:
+
+```bash
+cd /home/sumit-ghosh/Development/hackathon/bolna_ai/backend
+make db-upgrade
+make worker
+```
+
+The API remains the webhook/API process; `make worker` is the separate persistent process that submits queued calls. In a hosted setup, run the same backend image with `python -m app.workers.bolna_worker` as a second process and the same environment variables. Do not start it until the Bolna agent and webhook URL are configured.
+
+When a queue item is processed, the worker terminal prints lifecycle logs such as `voice_call_queue_picked`, `voice_call_initiating`, and `voice_call_initiated`, including the organizer, event, sponsor, and call/attempt IDs. It deliberately never prints phone numbers, recordings, or transcripts. Later in-progress and completion updates arrive through the FastAPI webhook process, so those appear in the API server logs and in the call detail screen.
 
 ## Database schema and migrations
 
@@ -152,7 +168,7 @@ Never edit a migration that has been applied to a shared environment. Add a new 
 
 ## Remaining work
 
-1. Bolna adapter, provider-verified webhook contract and call review (blocked on the agent script, consent rules and staging access).
+1. Verify the exact Bolna agent payload/webhook contract in staging before enabling real calls.
 2. Hosting choice (Render or Railway) and production URLs.
 
 ## Safety boundaries to preserve
